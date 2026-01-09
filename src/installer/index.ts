@@ -20,7 +20,7 @@ export const COMMANDS_DIR = join(CLAUDE_CONFIG_DIR, 'commands');
 export const VERSION_FILE = join(CLAUDE_CONFIG_DIR, '.sisyphus-version.json');
 
 /** Current version */
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 
 /** Installation result */
 export interface InstallResult {
