@@ -246,10 +246,9 @@ describe('Installer Constants', () => {
 
     it('should contain essential sections', () => {
       const essentialSections = [
-        'OMC Multi-Agent System',
-        'How I Work',
-        'What I Do Automatically',
-        'Delegate Always',
+        'Multi-Agent Orchestration',
+        'DELEGATION-FIRST PHILOSOPHY',
+        'What Happens Automatically',
         'Magic Keywords',
         'Stopping and Cancelling',
       ];
@@ -260,7 +259,7 @@ describe('Installer Constants', () => {
     });
 
     it('should reference all core agents', () => {
-      // The new CLAUDE.md has agents in the INTERNAL section (Smart Model Routing table)
+      // The new CLAUDE.md has agents in tables and examples
       // We'll check for a subset of key agents to ensure the section exists
       const keyAgents = [
         'architect',
@@ -272,19 +271,20 @@ describe('Installer Constants', () => {
       ];
 
       for (const agent of keyAgents) {
-        // Agents are prefixed with oh-my-claudecode: in the content
-        expect(CLAUDE_MD_CONTENT).toMatch(new RegExp(`oh-my-claudecode:${agent}`));
+        // Agents appear in tables and delegation examples
+        expect(CLAUDE_MD_CONTENT).toContain(agent);
       }
     });
 
     it('should include tiered agent routing table', () => {
-      // Verify the Smart Model Routing section exists in INTERNAL section
+      // Verify the Smart Model Routing section and agent tiers exist
       expect(CLAUDE_MD_CONTENT).toContain('Smart Model Routing');
       expect(CLAUDE_MD_CONTENT).toContain('LOW (Haiku)');
       expect(CLAUDE_MD_CONTENT).toContain('MEDIUM (Sonnet)');
       expect(CLAUDE_MD_CONTENT).toContain('HIGH (Opus)');
-      expect(CLAUDE_MD_CONTENT).toContain('oh-my-claudecode:explore');
-      expect(CLAUDE_MD_CONTENT).toContain('oh-my-claudecode:executor-low');
+      // Agent names appear in tier tables
+      expect(CLAUDE_MD_CONTENT).toContain('explore');
+      expect(CLAUDE_MD_CONTENT).toContain('executor-low');
     });
 
     it('should document magic keywords and compatibility commands', () => {
@@ -304,7 +304,7 @@ describe('Installer Constants', () => {
       }
 
       // Verify backward compatibility section exists
-      expect(CLAUDE_MD_CONTENT).toContain('All Old Commands Still Work');
+      expect(CLAUDE_MD_CONTENT).toContain('All old commands still work');
       expect(CLAUDE_MD_CONTENT).toContain('/ralph');
       expect(CLAUDE_MD_CONTENT).toContain('/ultrawork');
       expect(CLAUDE_MD_CONTENT).toContain('/planner');
@@ -326,7 +326,7 @@ describe('Installer Constants', () => {
 
     it('should match package.json version', () => {
       // This is a runtime check - VERSION should match the package.json
-      expect(VERSION).toBe('3.0.8');
+      expect(VERSION).toBe('3.0.9');
     });
   });
 

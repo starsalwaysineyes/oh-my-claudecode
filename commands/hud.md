@@ -1,0 +1,3 @@
+---
+description: Configure HUD display options (layout, presets, display elements)
+---

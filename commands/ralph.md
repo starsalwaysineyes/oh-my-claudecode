@@ -1,0 +1,3 @@
+---
+description: Self-referential loop until task completion with architect verification
+---

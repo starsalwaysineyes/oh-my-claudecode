@@ -1,0 +1,3 @@
+---
+description: Iterative planning with Planner, Architect, and Critic until consensus
+---
