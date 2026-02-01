@@ -46,27 +46,55 @@ function countIncompleteTodos(todosDir) {
   return count;
 }
 
-// Check if HUD is properly installed
-function checkHudInstallation() {
-  const hudScript = join(homedir(), '.claude', 'hud', 'omc-hud.mjs');
+// Check if HUD is properly installed (with retry for race conditions)
+async function checkHudInstallation(retryCount = 0) {
+  const hudDir = join(homedir(), '.claude', 'hud');
+  // Support both legacy (sisyphus-hud.mjs) and current (omc-hud.mjs) naming
+  const hudScriptOmc = join(hudDir, 'omc-hud.mjs');
+  const hudScriptSisyphus = join(hudDir, 'sisyphus-hud.mjs');
   const settingsFile = join(homedir(), '.claude', 'settings.json');
 
-  // Check if HUD script exists
-  if (!existsSync(hudScript)) {
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY_MS = 100;
+
+  // Check if HUD script exists (either naming convention)
+  const hudScriptExists = existsSync(hudScriptOmc) || existsSync(hudScriptSisyphus);
+  if (!hudScriptExists) {
     return { installed: false, reason: 'HUD script missing' };
   }
 
-  // Check if statusLine is configured
+  // Check if statusLine is configured (with retry for race conditions)
   try {
     if (existsSync(settingsFile)) {
-      const settings = JSON.parse(readFileSync(settingsFile, 'utf-8'));
+      const content = readFileSync(settingsFile, 'utf-8');
+      // Handle empty or whitespace-only content (race condition during write)
+      if (!content || !content.trim()) {
+        if (retryCount < MAX_RETRIES) {
+          // Sleep and retry (non-blocking)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+          return checkHudInstallation(retryCount + 1);
+        }
+        return { installed: false, reason: 'settings.json empty (possible race condition)' };
+      }
+      const settings = JSON.parse(content);
       if (!settings.statusLine) {
+        // Retry once if statusLine not found (could be mid-write)
+        if (retryCount < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+          return checkHudInstallation(retryCount + 1);
+        }
         return { installed: false, reason: 'statusLine not configured' };
       }
     } else {
       return { installed: false, reason: 'settings.json missing' };
     }
-  } catch {
+  } catch (err) {
+    // JSON parse error - could be mid-write, retry
+    if (retryCount < MAX_RETRIES) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+      return checkHudInstallation(retryCount + 1);
+    }
+    console.error('HUD check error:', err.message);
     return { installed: false, reason: 'Could not read settings' };
   }
 
@@ -84,7 +112,7 @@ async function main() {
     const messages = [];
 
     // Check HUD installation (one-time setup guidance)
-    const hudCheck = checkHudInstallation();
+    const hudCheck = await checkHudInstallation();
     if (!hudCheck.installed) {
       messages.push(`<system-reminder>
 [Sisyphus] HUD not configured (${hudCheck.reason}). Run /hud setup then restart Claude Code.
@@ -92,8 +120,8 @@ async function main() {
     }
 
     // Check for ultrawork state
-    const ultraworkState = readJsonFile(join(directory, '.omc', 'state', 'ultrawork-state.json'))
-      || readJsonFile(join(homedir(), '.omc', 'state', 'ultrawork-state.json'));
+    const ultraworkState = readJsonFile(join(directory, '.omc', 'ultrawork-state.json'))
+      || readJsonFile(join(homedir(), '.claude', 'ultrawork-state.json'));
 
     if (ultraworkState?.active) {
       messages.push(`<session-restore>
@@ -112,7 +140,7 @@ Continue working in ultrawork mode until all tasks are complete.
     }
 
     // Check for ralph loop state
-    const ralphState = readJsonFile(join(directory, '.omc', 'state', 'ralph-state.json'));
+    const ralphState = readJsonFile(join(directory, '.omc', 'ralph-state.json'));
     if (ralphState?.active) {
       messages.push(`<session-restore>
 
@@ -171,13 +199,7 @@ ${cleanContent}
     }
 
     if (messages.length > 0) {
-      console.log(JSON.stringify({
-        continue: true,
-        hookSpecificOutput: {
-          hookEventName: 'SessionStart',
-          additionalContext: messages.join('\n')
-        }
-      }));
+      console.log(JSON.stringify({ continue: true, message: messages.join('\n') }));
     } else {
       console.log(JSON.stringify({ continue: true }));
     }
