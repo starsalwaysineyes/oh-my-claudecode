@@ -297,16 +297,18 @@ When you detect trigger patterns above, you MUST invoke the corresponding skill 
 |-----------|------|----------|-------------|
 | `agent_role` | string | Yes | Agent perspective (see routing table above) |
 | `prompt_file` | string | Yes | Path to file containing **task instructions** (what the CLI should do). Write under `{working_directory}/.omc/prompts/` using naming convention `{tool}-{purpose}-{timestamp}.md`. |
-| `output_file` | string | No | Path for **work summary** (what was done). The CLI may write here directly via shell, or the wrapper writes stdout if not. Use `-summary.md` suffix. |
+| `output_file` | string | Yes | Path for **work summary** (what was done). The CLI may write here directly via shell, or the wrapper writes stdout if not. Use `-summary.md` suffix. |
 | `files` / `context_files` | array | No | File paths to include as context |
 | `model` | string | No | Model to use (has defaults and fallback chains) |
 | `background` | boolean | No | Run in background (non-blocking) |
+| `working_directory` | string | No | Project directory for the CLI to operate in. Defaults to `process.cwd()`. Can be any valid directory — does NOT need to be within CC's worktree. |
 
 **Notes:**
 - Write task instructions to `prompt_file`, not inline prompts
 - **Two-layer model**: The MCP wrapper reads `context_files` to build the prompt; the CLI (Codex/Gemini in --full-auto/--yolo mode) has full filesystem access during execution
 - The CLI can read additional files and write directly to `output_file` or other files
-- `prompt_file` must be within the project working directory (security boundary)
+
+**Security boundary:** `working_directory` is the trust boundary. `prompt_file` and `output_file` must resolve to paths within `working_directory`. The `working_directory` itself can be any accessible directory — it is NOT restricted to CC's current worktree. This allows cross-project use (e.g., running CC in one repo while delegating Codex/Gemini work to another).
 
 **Semantic Model:**
 - `prompt_file`: Task instructions ("Refactor X", "Review Y", "Fix Z")

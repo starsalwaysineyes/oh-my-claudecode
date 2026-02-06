@@ -13713,44 +13713,21 @@ var StdioServerTransport = class {
 
 // src/mcp/gemini-core.ts
 var import_child_process3 = require("child_process");
-var import_fs4 = require("fs");
-var import_path4 = require("path");
-
-// src/lib/worktree-paths.ts
-var import_child_process = require("child_process");
-var import_fs = require("fs");
-var import_path = require("path");
-var worktreeCache = null;
-function getWorktreeRoot(cwd) {
-  const effectiveCwd = cwd || process.cwd();
-  if (worktreeCache && worktreeCache.cwd === effectiveCwd) {
-    return worktreeCache.root || null;
-  }
-  try {
-    const root = (0, import_child_process.execSync)("git rev-parse --show-toplevel", {
-      cwd: effectiveCwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"]
-    }).trim();
-    worktreeCache = { cwd: effectiveCwd, root };
-    return root;
-  } catch {
-    return null;
-  }
-}
+var import_fs5 = require("fs");
+var import_path5 = require("path");
 
 // src/mcp/cli-detection.ts
-var import_child_process2 = require("child_process");
+var import_child_process = require("child_process");
 var geminiCache = null;
 function detectGeminiCli(useCache = true) {
   if (useCache && geminiCache) return geminiCache;
   const installHint = "Install Gemini CLI: npm install -g @google/gemini-cli (see https://github.com/google-gemini/gemini-cli)";
   try {
     const command = process.platform === "win32" ? "where gemini" : "which gemini";
-    const path = (0, import_child_process2.execSync)(command, { encoding: "utf-8", timeout: 5e3 }).trim();
+    const path = (0, import_child_process.execSync)(command, { encoding: "utf-8", timeout: 5e3 }).trim();
     let version2;
     try {
-      version2 = (0, import_child_process2.execSync)("gemini --version", { encoding: "utf-8", timeout: 5e3 }).trim();
+      version2 = (0, import_child_process.execSync)("gemini --version", { encoding: "utf-8", timeout: 5e3 }).trim();
     } catch {
     }
     const result = { available: true, path, version: version2, installHint };
@@ -13768,29 +13745,29 @@ function detectGeminiCli(useCache = true) {
 }
 
 // src/agents/utils.ts
-var import_fs2 = require("fs");
-var import_path2 = require("path");
+var import_fs = require("fs");
+var import_path = require("path");
 var import_url = require("url");
 var import_meta = {};
 function getPackageDir() {
   const __filename = (0, import_url.fileURLToPath)(import_meta.url);
-  const __dirname = (0, import_path2.dirname)(__filename);
-  return (0, import_path2.join)(__dirname, "..", "..");
+  const __dirname = (0, import_path.dirname)(__filename);
+  return (0, import_path.join)(__dirname, "..", "..");
 }
 function loadAgentPrompt(agentName) {
   if (!/^[a-z0-9-]+$/i.test(agentName)) {
     throw new Error(`Invalid agent name: contains disallowed characters`);
   }
   try {
-    const agentsDir = (0, import_path2.join)(getPackageDir(), "agents");
-    const agentPath = (0, import_path2.join)(agentsDir, `${agentName}.md`);
-    const resolvedPath = (0, import_path2.resolve)(agentPath);
-    const resolvedAgentsDir = (0, import_path2.resolve)(agentsDir);
-    const rel = (0, import_path2.relative)(resolvedAgentsDir, resolvedPath);
-    if (rel.startsWith("..") || (0, import_path2.isAbsolute)(rel)) {
+    const agentsDir = (0, import_path.join)(getPackageDir(), "agents");
+    const agentPath = (0, import_path.join)(agentsDir, `${agentName}.md`);
+    const resolvedPath = (0, import_path.resolve)(agentPath);
+    const resolvedAgentsDir = (0, import_path.resolve)(agentsDir);
+    const rel = (0, import_path.relative)(resolvedAgentsDir, resolvedPath);
+    if (rel.startsWith("..") || (0, import_path.isAbsolute)(rel)) {
       throw new Error(`Invalid agent name: path traversal detected`);
     }
-    const content = (0, import_fs2.readFileSync)(agentPath, "utf-8");
+    const content = (0, import_fs.readFileSync)(agentPath, "utf-8");
     const match = content.match(/^---[\s\S]*?---\s*([\s\S]*)$/);
     return match ? match[1].trim() : content.trim();
   } catch (error2) {
@@ -13833,25 +13810,148 @@ ${systemPrompt}
 }
 
 // src/mcp/prompt-persistence.ts
+var import_fs4 = require("fs");
+var import_path4 = require("path");
+var import_crypto = require("crypto");
+
+// src/lib/worktree-paths.ts
+var import_child_process2 = require("child_process");
+var import_fs2 = require("fs");
+var import_path2 = require("path");
+var worktreeCache = null;
+function getWorktreeRoot(cwd) {
+  const effectiveCwd = cwd || process.cwd();
+  if (worktreeCache && worktreeCache.cwd === effectiveCwd) {
+    return worktreeCache.root || null;
+  }
+  try {
+    const root = (0, import_child_process2.execSync)("git rev-parse --show-toplevel", {
+      cwd: effectiveCwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"]
+    }).trim();
+    worktreeCache = { cwd: effectiveCwd, root };
+    return root;
+  } catch {
+    return null;
+  }
+}
+
+// src/mcp/job-state-db.ts
 var import_fs3 = require("fs");
 var import_path3 = require("path");
-var import_crypto = require("crypto");
+var DEFAULT_CLEANUP_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+var db = null;
+function rowToJobStatus(row) {
+  return {
+    provider: row.provider,
+    jobId: row.job_id,
+    slug: row.slug,
+    status: row.status,
+    pid: row.pid ?? void 0,
+    promptFile: row.prompt_file,
+    responseFile: row.response_file,
+    model: row.model,
+    agentRole: row.agent_role,
+    spawnedAt: row.spawned_at,
+    completedAt: row.completed_at ?? void 0,
+    error: row.error ?? void 0,
+    usedFallback: row.used_fallback === 1 ? true : void 0,
+    fallbackModel: row.fallback_model ?? void 0,
+    killedByUser: row.killed_by_user === 1 ? true : void 0
+  };
+}
+function isJobDbInitialized() {
+  return db !== null;
+}
+function upsertJob(status) {
+  if (!db) return false;
+  try {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO jobs (
+        job_id, provider, slug, status, pid,
+        prompt_file, response_file, model, agent_role,
+        spawned_at, completed_at, error,
+        used_fallback, fallback_model, killed_by_user
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      status.jobId,
+      status.provider,
+      status.slug,
+      status.status,
+      status.pid ?? null,
+      status.promptFile,
+      status.responseFile,
+      status.model,
+      status.agentRole,
+      status.spawnedAt,
+      status.completedAt ?? null,
+      status.error ?? null,
+      status.usedFallback ? 1 : 0,
+      status.fallbackModel ?? null,
+      status.killedByUser ? 1 : 0
+    );
+    return true;
+  } catch (error2) {
+    console.error("[job-state-db] Failed to upsert job:", error2);
+    return false;
+  }
+}
+function getJob(provider, jobId) {
+  if (!db) return null;
+  try {
+    const stmt = db.prepare(
+      "SELECT * FROM jobs WHERE provider = ? AND job_id = ?"
+    );
+    const row = stmt.get(provider, jobId);
+    if (!row) return null;
+    return rowToJobStatus(row);
+  } catch (error2) {
+    console.error("[job-state-db] Failed to get job:", error2);
+    return null;
+  }
+}
+function getActiveJobs(provider) {
+  if (!db) return [];
+  try {
+    let stmt;
+    let rows;
+    if (provider) {
+      stmt = db.prepare(
+        "SELECT * FROM jobs WHERE provider = ? AND status IN ('spawned', 'running') ORDER BY spawned_at DESC"
+      );
+      rows = stmt.all(provider);
+    } else {
+      stmt = db.prepare(
+        "SELECT * FROM jobs WHERE status IN ('spawned', 'running') ORDER BY spawned_at DESC"
+      );
+      rows = stmt.all();
+    }
+    return rows.map(rowToJobStatus);
+  } catch (error2) {
+    console.error("[job-state-db] Failed to get active jobs:", error2);
+    return [];
+  }
+}
+
+// src/mcp/prompt-persistence.ts
 function yamlString(value) {
   return JSON.stringify(value);
 }
 function renameOverwritingSync(fromPath, toPath) {
   try {
-    (0, import_fs3.renameSync)(fromPath, toPath);
+    (0, import_fs4.renameSync)(fromPath, toPath);
     return;
   } catch {
   }
   try {
-    if ((0, import_fs3.existsSync)(toPath)) {
-      (0, import_fs3.unlinkSync)(toPath);
+    if ((0, import_fs4.existsSync)(toPath)) {
+      (0, import_fs4.unlinkSync)(toPath);
     }
   } catch {
   }
-  (0, import_fs3.renameSync)(fromPath, toPath);
+  (0, import_fs4.renameSync)(fromPath, toPath);
 }
 function slugify(text, maxWords = 4) {
   if (!text || typeof text !== "string") {
@@ -13869,7 +13969,7 @@ function generatePromptId() {
 }
 function getPromptsDir(workingDirectory) {
   const root = getWorktreeRoot(workingDirectory) || workingDirectory || process.cwd();
-  return (0, import_path3.join)(root, ".omc", "prompts");
+  return (0, import_path4.join)(root, ".omc", "prompts");
 }
 function buildPromptFrontmatter(options) {
   const lines = [
@@ -13907,16 +14007,16 @@ function buildResponseFrontmatter(options) {
 function persistPrompt(options) {
   try {
     const promptsDir = getPromptsDir(options.workingDirectory);
-    (0, import_fs3.mkdirSync)(promptsDir, { recursive: true });
+    (0, import_fs4.mkdirSync)(promptsDir, { recursive: true });
     const slug = slugify(options.prompt);
     const id = generatePromptId();
     const filename = `${options.provider}-prompt-${slug}-${id}.md`;
-    const filePath = (0, import_path3.join)(promptsDir, filename);
+    const filePath = (0, import_path4.join)(promptsDir, filename);
     const frontmatter = buildPromptFrontmatter(options);
     const content = `${frontmatter}
 
 ${options.fullPrompt}`;
-    (0, import_fs3.writeFileSync)(filePath, content, "utf-8");
+    (0, import_fs4.writeFileSync)(filePath, content, "utf-8");
     return { filePath, id, slug };
   } catch (err) {
     console.warn(`[prompt-persistence] Failed to persist prompt: ${err.message}`);
@@ -13926,19 +14026,19 @@ ${options.fullPrompt}`;
 function getExpectedResponsePath(provider, slug, promptId, workingDirectory) {
   const promptsDir = getPromptsDir(workingDirectory);
   const filename = `${provider}-response-${slug}-${promptId}.md`;
-  return (0, import_path3.join)(promptsDir, filename);
+  return (0, import_path4.join)(promptsDir, filename);
 }
 function persistResponse(options) {
   try {
     const promptsDir = getPromptsDir(options.workingDirectory);
-    (0, import_fs3.mkdirSync)(promptsDir, { recursive: true });
+    (0, import_fs4.mkdirSync)(promptsDir, { recursive: true });
     const filename = `${options.provider}-response-${options.slug}-${options.promptId}.md`;
-    const filePath = (0, import_path3.join)(promptsDir, filename);
+    const filePath = (0, import_path4.join)(promptsDir, filename);
     const frontmatter = buildResponseFrontmatter(options);
     const content = `${frontmatter}
 
 ${options.response}`;
-    (0, import_fs3.writeFileSync)(filePath, content, "utf-8");
+    (0, import_fs4.writeFileSync)(filePath, content, "utf-8");
     return filePath;
   } catch (err) {
     console.warn(`[prompt-persistence] Failed to persist response: ${err.message}`);
@@ -13947,27 +14047,34 @@ ${options.response}`;
 }
 function getStatusFilePath(provider, slug, promptId, workingDirectory) {
   const promptsDir = getPromptsDir(workingDirectory);
-  return (0, import_path3.join)(promptsDir, `${provider}-status-${slug}-${promptId}.json`);
+  return (0, import_path4.join)(promptsDir, `${provider}-status-${slug}-${promptId}.json`);
 }
 function writeJobStatus(status, workingDirectory) {
   try {
     const promptsDir = getPromptsDir(workingDirectory);
-    (0, import_fs3.mkdirSync)(promptsDir, { recursive: true });
+    (0, import_fs4.mkdirSync)(promptsDir, { recursive: true });
     const statusPath = getStatusFilePath(status.provider, status.slug, status.jobId, workingDirectory);
     const tempPath = statusPath + ".tmp";
-    (0, import_fs3.writeFileSync)(tempPath, JSON.stringify(status, null, 2), "utf-8");
+    (0, import_fs4.writeFileSync)(tempPath, JSON.stringify(status, null, 2), "utf-8");
     renameOverwritingSync(tempPath, statusPath);
+    if (isJobDbInitialized()) {
+      upsertJob(status);
+    }
   } catch (err) {
     console.warn(`[prompt-persistence] Failed to write job status: ${err.message}`);
   }
 }
 function readJobStatus(provider, slug, promptId, workingDirectory) {
+  if (isJobDbInitialized()) {
+    const dbResult = getJob(provider, promptId);
+    if (dbResult) return dbResult;
+  }
   const statusPath = getStatusFilePath(provider, slug, promptId, workingDirectory);
-  if (!(0, import_fs3.existsSync)(statusPath)) {
+  if (!(0, import_fs4.existsSync)(statusPath)) {
     return void 0;
   }
   try {
-    const content = (0, import_fs3.readFileSync)(statusPath, "utf-8");
+    const content = (0, import_fs4.readFileSync)(statusPath, "utf-8");
     return JSON.parse(content);
   } catch {
     return void 0;
@@ -13975,7 +14082,7 @@ function readJobStatus(provider, slug, promptId, workingDirectory) {
 }
 function readCompletedResponse(provider, slug, promptId, workingDirectory) {
   const responsePath = getExpectedResponsePath(provider, slug, promptId, workingDirectory);
-  if (!(0, import_fs3.existsSync)(responsePath)) {
+  if (!(0, import_fs4.existsSync)(responsePath)) {
     return void 0;
   }
   const status = readJobStatus(provider, slug, promptId, workingDirectory);
@@ -13983,7 +14090,7 @@ function readCompletedResponse(provider, slug, promptId, workingDirectory) {
     return void 0;
   }
   try {
-    const content = (0, import_fs3.readFileSync)(responsePath, "utf-8");
+    const content = (0, import_fs4.readFileSync)(responsePath, "utf-8");
     const frontmatterMatch = content.match(/^---\n[\s\S]*?\n---\n\n/);
     const response = frontmatterMatch ? content.slice(frontmatterMatch[0].length) : content;
     return { response, status };
@@ -13992,12 +14099,15 @@ function readCompletedResponse(provider, slug, promptId, workingDirectory) {
   }
 }
 function listActiveJobs(provider, workingDirectory) {
+  if (isJobDbInitialized()) {
+    return getActiveJobs(provider);
+  }
   const promptsDir = getPromptsDir(workingDirectory);
-  if (!(0, import_fs3.existsSync)(promptsDir)) {
+  if (!(0, import_fs4.existsSync)(promptsDir)) {
     return [];
   }
   try {
-    const files = (0, import_fs3.readdirSync)(promptsDir);
+    const files = (0, import_fs4.readdirSync)(promptsDir);
     const statusFiles = files.filter((f) => {
       if (!f.endsWith(".json")) return false;
       if (provider) {
@@ -14008,7 +14118,7 @@ function listActiveJobs(provider, workingDirectory) {
     const activeJobs = [];
     for (const file of statusFiles) {
       try {
-        const content = (0, import_fs3.readFileSync)((0, import_path3.join)(promptsDir, file), "utf-8");
+        const content = (0, import_fs4.readFileSync)((0, import_path4.join)(promptsDir, file), "utf-8");
         const status = JSON.parse(content);
         if (status.status === "spawned" || status.status === "running") {
           activeJobs.push(status);
@@ -14226,19 +14336,19 @@ function validateAndReadFile(filePath, baseDir) {
     return `--- File: ${filePath} --- (Invalid path type)`;
   }
   try {
-    const resolvedAbs = (0, import_path4.resolve)(baseDir || process.cwd(), filePath);
+    const resolvedAbs = (0, import_path5.resolve)(baseDir || process.cwd(), filePath);
     const cwd = baseDir || process.cwd();
-    const cwdReal = (0, import_fs4.realpathSync)(cwd);
-    const relAbs = (0, import_path4.relative)(cwdReal, resolvedAbs);
-    if (relAbs === "" || relAbs === ".." || relAbs.startsWith(".." + import_path4.sep)) {
+    const cwdReal = (0, import_fs5.realpathSync)(cwd);
+    const relAbs = (0, import_path5.relative)(cwdReal, resolvedAbs);
+    if (relAbs === "" || relAbs === ".." || relAbs.startsWith(".." + import_path5.sep)) {
       return `[BLOCKED] File '${filePath}' is outside the working directory. Only files within the project are allowed.`;
     }
-    const resolvedReal = (0, import_fs4.realpathSync)(resolvedAbs);
-    const relReal = (0, import_path4.relative)(cwdReal, resolvedReal);
-    if (relReal === "" || relReal === ".." || relReal.startsWith(".." + import_path4.sep)) {
+    const resolvedReal = (0, import_fs5.realpathSync)(resolvedAbs);
+    const relReal = (0, import_path5.relative)(cwdReal, resolvedReal);
+    if (relReal === "" || relReal === ".." || relReal.startsWith(".." + import_path5.sep)) {
       return `[BLOCKED] File '${filePath}' is outside the working directory. Only files within the project are allowed.`;
     }
-    const stats = (0, import_fs4.statSync)(resolvedReal);
+    const stats = (0, import_fs5.statSync)(resolvedReal);
     if (!stats.isFile()) {
       return `--- File: ${filePath} --- (Not a regular file)`;
     }
@@ -14246,34 +14356,20 @@ function validateAndReadFile(filePath, baseDir) {
       return `--- File: ${filePath} --- (File too large: ${(stats.size / 1024 / 1024).toFixed(1)}MB, max 5MB)`;
     }
     return `--- File: ${filePath} ---
-${(0, import_fs4.readFileSync)(resolvedReal, "utf-8")}`;
+${(0, import_fs5.readFileSync)(resolvedReal, "utf-8")}`;
   } catch {
     return `--- File: ${filePath} --- (Error reading file)`;
   }
 }
 async function handleAskGemini(args) {
   const { agent_role, model = GEMINI_DEFAULT_MODEL, files } = args;
-  const trustedRoot = getWorktreeRoot(process.cwd()) || process.cwd();
-  let trustedRootReal;
-  try {
-    trustedRootReal = (0, import_fs4.realpathSync)(trustedRoot);
-  } catch {
-    trustedRootReal = trustedRoot;
-  }
   let baseDir = args.working_directory || process.cwd();
   let baseDirReal;
   try {
-    baseDirReal = (0, import_fs4.realpathSync)(baseDir);
+    baseDirReal = (0, import_fs5.realpathSync)(baseDir);
   } catch (err) {
     return {
       content: [{ type: "text", text: `working_directory '${args.working_directory}' does not exist or is not accessible: ${err.message}` }],
-      isError: true
-    };
-  }
-  const relToRoot = (0, import_path4.relative)(trustedRootReal, baseDirReal);
-  if (relToRoot.startsWith("..") || (0, import_path4.isAbsolute)(relToRoot)) {
-    return {
-      content: [{ type: "text", text: `working_directory '${args.working_directory}' is outside the trusted worktree root '${trustedRoot}'.` }],
       isError: true
     };
   }
@@ -14305,10 +14401,10 @@ async function handleAskGemini(args) {
     };
   }
   let resolvedPrompt;
-  const resolvedPath = (0, import_path4.resolve)(baseDir, args.prompt_file);
-  const cwdReal = (0, import_fs4.realpathSync)(baseDir);
-  const relPath = (0, import_path4.relative)(cwdReal, resolvedPath);
-  if (relPath === "" || relPath === ".." || relPath.startsWith(".." + import_path4.sep)) {
+  const resolvedPath = (0, import_path5.resolve)(baseDir, args.prompt_file);
+  const cwdReal = (0, import_fs5.realpathSync)(baseDir);
+  const relPath = (0, import_path5.relative)(cwdReal, resolvedPath);
+  if (relPath === "" || relPath === ".." || relPath.startsWith(".." + import_path5.sep)) {
     return {
       content: [{ type: "text", text: `prompt_file '${args.prompt_file}' is outside the working directory.` }],
       isError: true
@@ -14316,22 +14412,22 @@ async function handleAskGemini(args) {
   }
   let resolvedReal;
   try {
-    resolvedReal = (0, import_fs4.realpathSync)(resolvedPath);
+    resolvedReal = (0, import_fs5.realpathSync)(resolvedPath);
   } catch (err) {
     return {
       content: [{ type: "text", text: `Failed to resolve prompt_file '${args.prompt_file}': ${err.message}` }],
       isError: true
     };
   }
-  const relReal = (0, import_path4.relative)(cwdReal, resolvedReal);
-  if (relReal === "" || relReal === ".." || relReal.startsWith(".." + import_path4.sep)) {
+  const relReal = (0, import_path5.relative)(cwdReal, resolvedReal);
+  if (relReal === "" || relReal === ".." || relReal.startsWith(".." + import_path5.sep)) {
     return {
       content: [{ type: "text", text: `prompt_file '${args.prompt_file}' resolves to a path outside the working directory.` }],
       isError: true
     };
   }
   try {
-    resolvedPrompt = (0, import_fs4.readFileSync)(resolvedReal, "utf-8");
+    resolvedPrompt = (0, import_fs5.readFileSync)(resolvedReal, "utf-8");
   } catch (err) {
     return {
       content: [{ type: "text", text: `Failed to read prompt_file '${args.prompt_file}': ${err.message}` }],
@@ -14346,7 +14442,7 @@ async function handleAskGemini(args) {
   }
   let userPrompt = resolvedPrompt;
   if (args.output_file) {
-    const outputPath = (0, import_path4.resolve)(baseDir, args.output_file);
+    const outputPath = (0, import_path5.resolve)(baseDir, args.output_file);
     userPrompt = `IMPORTANT: After completing the task, write a WORK SUMMARY to: ${outputPath}
 Include: what was done, files modified/created, key decisions made, and any issues encountered.
 The summary is for the orchestrator to understand what changed - actual work products should be created directly.
@@ -14448,9 +14544,9 @@ ${detection.installHint}`
   let outputFileMtimeBefore = null;
   let resolvedOutputPath;
   if (args.output_file) {
-    resolvedOutputPath = (0, import_path4.resolve)(baseDirReal, args.output_file);
+    resolvedOutputPath = (0, import_path5.resolve)(baseDirReal, args.output_file);
     try {
-      outputFileMtimeBefore = (0, import_fs4.statSync)(resolvedOutputPath).mtimeMs;
+      outputFileMtimeBefore = (0, import_fs5.statSync)(resolvedOutputPath).mtimeMs;
     } catch {
       outputFileMtimeBefore = null;
     }
@@ -14479,7 +14575,7 @@ ${detection.installHint}`
       if (args.output_file && resolvedOutputPath) {
         let cliWroteFile = false;
         try {
-          const currentMtime = (0, import_fs4.statSync)(resolvedOutputPath).mtimeMs;
+          const currentMtime = (0, import_fs5.statSync)(resolvedOutputPath).mtimeMs;
           cliWroteFile = outputFileMtimeBefore !== null ? currentMtime > outputFileMtimeBefore : true;
         } catch {
           cliWroteFile = false;
@@ -14487,33 +14583,33 @@ ${detection.installHint}`
         if (cliWroteFile) {
         } else {
           const outputPath = resolvedOutputPath;
-          const relOutput = (0, import_path4.relative)(trustedRootReal, outputPath);
-          if (relOutput === "" || relOutput.startsWith("..") || (0, import_path4.isAbsolute)(relOutput)) {
-            console.warn(`[gemini-core] output_file '${args.output_file}' resolves outside trusted root, skipping write.`);
+          const relOutput = (0, import_path5.relative)(baseDirReal, outputPath);
+          if (relOutput === "" || relOutput.startsWith("..") || (0, import_path5.isAbsolute)(relOutput)) {
+            console.warn(`[gemini-core] output_file '${args.output_file}' resolves outside working directory, skipping write.`);
           } else {
             try {
-              const outputDir = (0, import_path4.dirname)(outputPath);
-              if (!(0, import_fs4.existsSync)(outputDir)) {
-                const relDir = (0, import_path4.relative)(trustedRootReal, outputDir);
-                if (relDir.startsWith("..") || (0, import_path4.isAbsolute)(relDir)) {
-                  console.warn(`[gemini-core] output_file directory is outside trusted root, skipping write.`);
+              const outputDir = (0, import_path5.dirname)(outputPath);
+              if (!(0, import_fs5.existsSync)(outputDir)) {
+                const relDir = (0, import_path5.relative)(baseDirReal, outputDir);
+                if (relDir.startsWith("..") || (0, import_path5.isAbsolute)(relDir)) {
+                  console.warn(`[gemini-core] output_file directory is outside working directory, skipping write.`);
                 } else {
-                  (0, import_fs4.mkdirSync)(outputDir, { recursive: true });
+                  (0, import_fs5.mkdirSync)(outputDir, { recursive: true });
                 }
               }
               let outputDirReal;
               try {
-                outputDirReal = (0, import_fs4.realpathSync)(outputDir);
+                outputDirReal = (0, import_fs5.realpathSync)(outputDir);
               } catch {
                 console.warn(`[gemini-core] Failed to resolve output directory, skipping write.`);
               }
               if (outputDirReal) {
-                const relDirReal = (0, import_path4.relative)(trustedRootReal, outputDirReal);
-                if (relDirReal.startsWith("..") || (0, import_path4.isAbsolute)(relDirReal)) {
-                  console.warn(`[gemini-core] output_file directory resolves outside trusted root, skipping write.`);
+                const relDirReal = (0, import_path5.relative)(baseDirReal, outputDirReal);
+                if (relDirReal.startsWith("..") || (0, import_path5.isAbsolute)(relDirReal)) {
+                  console.warn(`[gemini-core] output_file directory resolves outside working directory, skipping write.`);
                 } else {
-                  const safePath = (0, import_path4.join)(outputDirReal, (0, import_path4.basename)(outputPath));
-                  (0, import_fs4.writeFileSync)(safePath, response, "utf-8");
+                  const safePath = (0, import_path5.join)(outputDirReal, (0, import_path5.basename)(outputPath));
+                  (0, import_fs5.writeFileSync)(safePath, response, "utf-8");
                 }
               }
             } catch (err) {
@@ -14547,13 +14643,13 @@ ${errors.join("\n")}`
 }
 
 // src/mcp/job-management.ts
-var import_fs6 = require("fs");
-var import_path6 = require("path");
+var import_fs7 = require("fs");
+var import_path7 = require("path");
 
 // src/mcp/codex-core.ts
 var import_child_process4 = require("child_process");
-var import_fs5 = require("fs");
-var import_path5 = require("path");
+var import_fs6 = require("fs");
+var import_path6 = require("path");
 var spawnedPids2 = /* @__PURE__ */ new Set();
 function isSpawnedPid2(pid) {
   return spawnedPids2.has(pid);
@@ -14578,9 +14674,9 @@ function findJobStatusFile(provider, jobId) {
     return void 0;
   }
   const promptsDir = getPromptsDir();
-  if (!(0, import_fs6.existsSync)(promptsDir)) return void 0;
+  if (!(0, import_fs7.existsSync)(promptsDir)) return void 0;
   try {
-    const files = (0, import_fs6.readdirSync)(promptsDir);
+    const files = (0, import_fs7.readdirSync)(promptsDir);
     const escapedProvider = escapeRegex2(provider);
     const escapedJobId = escapeRegex2(jobId);
     const pattern = new RegExp(`^${escapedProvider}-status-(.+)-${escapedJobId}\\.json$`);
@@ -14591,7 +14687,7 @@ function findJobStatusFile(provider, jobId) {
         matches.push({
           file: f,
           slug: m[1],
-          statusPath: (0, import_path6.join)(promptsDir, f)
+          statusPath: (0, import_path7.join)(promptsDir, f)
         });
       }
     }
@@ -14602,7 +14698,7 @@ function findJobStatusFile(provider, jobId) {
     let best;
     for (const match of matches) {
       try {
-        const content = (0, import_fs6.readFileSync)(match.statusPath, "utf-8");
+        const content = (0, import_fs7.readFileSync)(match.statusPath, "utf-8");
         const status = JSON.parse(content);
         const isActive = status.status === "spawned" || status.status === "running";
         const spawnedAt = new Date(status.spawnedAt).getTime();
@@ -14628,6 +14724,38 @@ async function handleWaitForJob(provider, jobId, timeoutMs = 36e5) {
   const deadline = Date.now() + effectiveTimeout;
   let pollDelay = 500;
   while (Date.now() < deadline) {
+    if (isJobDbInitialized()) {
+      const status2 = getJob(provider, jobId);
+      if (status2) {
+        if (status2.status === "completed" || status2.status === "failed" || status2.status === "timeout") {
+          if (status2.status === "completed") {
+            const completed = readCompletedResponse(status2.provider, status2.slug, status2.jobId);
+            const responseSnippet = completed ? completed.response.substring(0, 500) + (completed.response.length > 500 ? "..." : "") : "(response file not found)";
+            return textResult([
+              `**Job ${jobId} completed.**`,
+              `**Provider:** ${status2.provider}`,
+              `**Model:** ${status2.model}`,
+              `**Agent Role:** ${status2.agentRole}`,
+              `**Response File:** ${status2.responseFile}`,
+              status2.usedFallback ? `**Fallback Model:** ${status2.fallbackModel}` : null,
+              ``,
+              `**Response preview:**`,
+              responseSnippet
+            ].filter(Boolean).join("\n"));
+          }
+          return textResult([
+            `**Job ${jobId} ${status2.status}.**`,
+            `**Provider:** ${status2.provider}`,
+            `**Model:** ${status2.model}`,
+            `**Agent Role:** ${status2.agentRole}`,
+            status2.error ? `**Error:** ${status2.error}` : null
+          ].filter(Boolean).join("\n"), true);
+        }
+        await new Promise((resolve5) => setTimeout(resolve5, pollDelay));
+        pollDelay = Math.min(pollDelay * 1.5, 2e3);
+        continue;
+      }
+    }
     const found = findJobStatusFile(provider, jobId);
     if (!found) {
       return textResult(`No job found with ID: ${jobId}`, true);
@@ -14671,6 +14799,27 @@ async function handleWaitForJob(provider, jobId, timeoutMs = 36e5) {
 async function handleCheckJobStatus(provider, jobId) {
   if (!jobId || typeof jobId !== "string") {
     return textResult("job_id is required.", true);
+  }
+  if (isJobDbInitialized()) {
+    const status2 = getJob(provider, jobId);
+    if (status2) {
+      const lines2 = [
+        `**Job ID:** ${status2.jobId}`,
+        `**Provider:** ${status2.provider}`,
+        `**Status:** ${status2.status}`,
+        `**Model:** ${status2.model}`,
+        `**Agent Role:** ${status2.agentRole}`,
+        `**Spawned At:** ${status2.spawnedAt}`,
+        status2.completedAt ? `**Completed At:** ${status2.completedAt}` : null,
+        status2.pid ? `**PID:** ${status2.pid}` : null,
+        `**Prompt File:** ${status2.promptFile}`,
+        `**Response File:** ${status2.responseFile}`,
+        status2.error ? `**Error:** ${status2.error}` : null,
+        status2.usedFallback ? `**Fallback Model:** ${status2.fallbackModel}` : null,
+        status2.killedByUser ? `**Killed By User:** yes` : null
+      ];
+      return textResult(lines2.filter(Boolean).join("\n"));
+    }
   }
   const found = findJobStatusFile(provider, jobId);
   if (!found) {
@@ -14797,6 +14946,24 @@ async function handleKillJob(provider, jobId, signal = "SIGTERM") {
 }
 async function handleListJobs(provider, statusFilter = "active", limit = 50) {
   if (statusFilter === "active") {
+    if (isJobDbInitialized()) {
+      const activeJobs2 = getActiveJobs(provider);
+      if (activeJobs2.length === 0) {
+        return textResult(`No active ${provider} jobs found.`);
+      }
+      const limited2 = activeJobs2.slice(0, limit);
+      const lines2 = limited2.map((job) => {
+        const parts = [
+          `- **${job.jobId}** [${job.status}] ${job.provider}/${job.model} (${job.agentRole})`,
+          `  Spawned: ${job.spawnedAt}`
+        ];
+        if (job.pid) parts.push(`  PID: ${job.pid}`);
+        return parts.join("\n");
+      });
+      return textResult(`**${limited2.length} active ${provider} job(s):**
+
+${lines2.join("\n\n")}`);
+    }
     const activeJobs = listActiveJobs(provider);
     if (activeJobs.length === 0) {
       return textResult(`No active ${provider} jobs found.`);
@@ -14816,18 +14983,18 @@ async function handleListJobs(provider, statusFilter = "active", limit = 50) {
 ${lines.join("\n\n")}`);
   }
   const promptsDir = getPromptsDir();
-  if (!(0, import_fs6.existsSync)(promptsDir)) {
+  if (!(0, import_fs7.existsSync)(promptsDir)) {
     return textResult(`No ${provider} jobs found.`);
   }
   try {
-    const files = (0, import_fs6.readdirSync)(promptsDir);
+    const files = (0, import_fs7.readdirSync)(promptsDir);
     const statusFiles = files.filter(
       (f) => f.startsWith(`${provider}-status-`) && f.endsWith(".json")
     );
     const jobs = [];
     for (const file of statusFiles) {
       try {
-        const content = (0, import_fs6.readFileSync)((0, import_path6.join)(promptsDir, file), "utf-8");
+        const content = (0, import_fs7.readFileSync)((0, import_path7.join)(promptsDir, file), "utf-8");
         const job = JSON.parse(content);
         if (statusFilter === "completed" && job.status !== "completed") continue;
         if (statusFilter === "failed" && job.status !== "failed" && job.status !== "timeout") continue;

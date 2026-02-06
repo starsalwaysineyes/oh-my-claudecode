@@ -58,6 +58,28 @@ export interface CompactCheckpoint {
         completed: number;
     };
     wisdom_exported: boolean;
+    background_jobs?: {
+        active: Array<{
+            jobId: string;
+            provider: string;
+            model: string;
+            agentRole: string;
+            spawnedAt: string;
+        }>;
+        recent: Array<{
+            jobId: string;
+            provider: string;
+            status: string;
+            agentRole: string;
+            completedAt?: string;
+        }>;
+        stats: {
+            total: number;
+            active: number;
+            completed: number;
+            failed: number;
+        } | null;
+    };
 }
 export interface HookOutput {
     continue: boolean;

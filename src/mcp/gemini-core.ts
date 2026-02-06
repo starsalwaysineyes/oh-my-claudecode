@@ -15,7 +15,6 @@
 import { spawn } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'fs';
 import { dirname, resolve, relative, sep, isAbsolute, basename, join } from 'path';
-import { getWorktreeRoot } from '../lib/worktree-paths.js';
 import { detectGeminiCli } from './cli-detection.js';
 import { resolveSystemPrompt, buildPromptWithSystemContext } from './prompt-injection.js';
 import { persistPrompt, persistResponse, getExpectedResponsePath } from './prompt-persistence.js';
@@ -333,15 +332,6 @@ export async function handleAskGemini(args: {
 }): Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }> {
   const { agent_role, model = GEMINI_DEFAULT_MODEL, files } = args;
 
-  // Derive trusted root from process.cwd(), NOT from user-controlled input
-  const trustedRoot = getWorktreeRoot(process.cwd()) || process.cwd();
-  let trustedRootReal: string;
-  try {
-    trustedRootReal = realpathSync(trustedRoot);
-  } catch {
-    trustedRootReal = trustedRoot; // Fallback if realpath fails
-  }
-
   // Derive baseDir from working_directory if provided
   let baseDir = args.working_directory || process.cwd();
   let baseDirReal: string;
@@ -354,14 +344,6 @@ export async function handleAskGemini(args: {
     };
   }
 
-  // Validate baseDir is within trusted root
-  const relToRoot = relative(trustedRootReal, baseDirReal);
-  if (relToRoot.startsWith('..') || isAbsolute(relToRoot)) {
-    return {
-      content: [{ type: 'text' as const, text: `working_directory '${args.working_directory}' is outside the trusted worktree root '${trustedRoot}'.` }],
-      isError: true
-    };
-  }
 
   // Validate agent_role
   if (!agent_role || !(GEMINI_VALID_ROLES as readonly string[]).includes(agent_role)) {
@@ -627,17 +609,17 @@ ${resolvedPrompt}`;
         } else {
           // CLI didn't write the file, write response ourselves
           const outputPath = resolvedOutputPath;
-          const relOutput = relative(trustedRootReal, outputPath);
+          const relOutput = relative(baseDirReal, outputPath);
           if (relOutput === '' || relOutput.startsWith('..') || isAbsolute(relOutput)) {
-            console.warn(`[gemini-core] output_file '${args.output_file}' resolves outside trusted root, skipping write.`);
+            console.warn(`[gemini-core] output_file '${args.output_file}' resolves outside working directory, skipping write.`);
           } else {
             try {
               const outputDir = dirname(outputPath);
 
               if (!existsSync(outputDir)) {
-                const relDir = relative(trustedRootReal, outputDir);
+                const relDir = relative(baseDirReal, outputDir);
                 if (relDir.startsWith('..') || isAbsolute(relDir)) {
-                  console.warn(`[gemini-core] output_file directory is outside trusted root, skipping write.`);
+                  console.warn(`[gemini-core] output_file directory is outside working directory, skipping write.`);
                 } else {
                   mkdirSync(outputDir, { recursive: true });
                 }
@@ -651,9 +633,9 @@ ${resolvedPrompt}`;
               }
 
               if (outputDirReal) {
-                const relDirReal = relative(trustedRootReal, outputDirReal);
+                const relDirReal = relative(baseDirReal, outputDirReal);
                 if (relDirReal.startsWith('..') || isAbsolute(relDirReal)) {
-                  console.warn(`[gemini-core] output_file directory resolves outside trusted root, skipping write.`);
+                  console.warn(`[gemini-core] output_file directory resolves outside working directory, skipping write.`);
                 } else {
                   const safePath = join(outputDirReal, basename(outputPath));
                   writeFileSync(safePath, response, 'utf-8');

@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, renameSync, readdir
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { getWorktreeRoot } from '../lib/worktree-paths.js';
+import { isJobDbInitialized, upsertJob, getJob, getActiveJobs as getActiveJobsFromDb, cleanupOldJobs as cleanupOldJobsInDb } from './job-state-db.js';
 
 function yamlString(value: string): string {
   // JSON strings are valid YAML scalars and safely escape quotes/newlines.
@@ -294,6 +295,11 @@ export function writeJobStatus(status: JobStatus, workingDirectory?: string): vo
 
     writeFileSync(tempPath, JSON.stringify(status, null, 2), 'utf-8');
     renameOverwritingSync(tempPath, statusPath);
+
+    // SQLite write-through: also persist to jobs.db if available
+    if (isJobDbInitialized()) {
+      upsertJob(status);
+    }
   } catch (err) {
     console.warn(`[prompt-persistence] Failed to write job status: ${(err as Error).message}`);
   }
@@ -303,6 +309,13 @@ export function writeJobStatus(status: JobStatus, workingDirectory?: string): vo
  * Read job status from disk
  */
 export function readJobStatus(provider: 'codex' | 'gemini', slug: string, promptId: string, workingDirectory?: string): JobStatus | undefined {
+  // Try SQLite first if available
+  if (isJobDbInitialized()) {
+    const dbResult = getJob(provider, promptId);
+    if (dbResult) return dbResult;
+  }
+
+  // Fallback to JSON file
   const statusPath = getStatusFilePath(provider, slug, promptId, workingDirectory);
   if (!existsSync(statusPath)) {
     return undefined;
@@ -365,6 +378,11 @@ export function readCompletedResponse(
  * List all active (spawned or running) background jobs
  */
 export function listActiveJobs(provider?: 'codex' | 'gemini', workingDirectory?: string): JobStatus[] {
+  // Try SQLite first if available
+  if (isJobDbInitialized()) {
+    return getActiveJobsFromDb(provider);
+  }
+
   const promptsDir = getPromptsDir(workingDirectory);
   if (!existsSync(promptsDir)) {
     return [];
@@ -403,6 +421,11 @@ export function listActiveJobs(provider?: 'codex' | 'gemini', workingDirectory?:
  * Mark stale background jobs (older than maxAgeMs) as timed out
  */
 export function cleanupStaleJobs(maxAgeMs: number, workingDirectory?: string): number {
+  // Also cleanup old terminal jobs in SQLite
+  if (isJobDbInitialized()) {
+    cleanupOldJobsInDb(maxAgeMs);
+  }
+
   const promptsDir = getPromptsDir(workingDirectory);
   if (!existsSync(promptsDir)) {
     return 0;

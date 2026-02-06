@@ -8,6 +8,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, renameSync, readdir
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { getWorktreeRoot } from '../lib/worktree-paths.js';
+import { isJobDbInitialized, upsertJob, getJob, getActiveJobs as getActiveJobsFromDb, cleanupOldJobs as cleanupOldJobsInDb } from './job-state-db.js';
 function yamlString(value) {
     // JSON strings are valid YAML scalars and safely escape quotes/newlines.
     return JSON.stringify(value);
@@ -191,6 +192,10 @@ export function writeJobStatus(status, workingDirectory) {
         const tempPath = statusPath + '.tmp';
         writeFileSync(tempPath, JSON.stringify(status, null, 2), 'utf-8');
         renameOverwritingSync(tempPath, statusPath);
+        // SQLite write-through: also persist to jobs.db if available
+        if (isJobDbInitialized()) {
+            upsertJob(status);
+        }
     }
     catch (err) {
         console.warn(`[prompt-persistence] Failed to write job status: ${err.message}`);
@@ -200,6 +205,13 @@ export function writeJobStatus(status, workingDirectory) {
  * Read job status from disk
  */
 export function readJobStatus(provider, slug, promptId, workingDirectory) {
+    // Try SQLite first if available
+    if (isJobDbInitialized()) {
+        const dbResult = getJob(provider, promptId);
+        if (dbResult)
+            return dbResult;
+    }
+    // Fallback to JSON file
     const statusPath = getStatusFilePath(provider, slug, promptId, workingDirectory);
     if (!existsSync(statusPath)) {
         return undefined;
@@ -249,6 +261,10 @@ export function readCompletedResponse(provider, slug, promptId, workingDirectory
  * List all active (spawned or running) background jobs
  */
 export function listActiveJobs(provider, workingDirectory) {
+    // Try SQLite first if available
+    if (isJobDbInitialized()) {
+        return getActiveJobsFromDb(provider);
+    }
     const promptsDir = getPromptsDir(workingDirectory);
     if (!existsSync(promptsDir)) {
         return [];
@@ -286,6 +302,10 @@ export function listActiveJobs(provider, workingDirectory) {
  * Mark stale background jobs (older than maxAgeMs) as timed out
  */
 export function cleanupStaleJobs(maxAgeMs, workingDirectory) {
+    // Also cleanup old terminal jobs in SQLite
+    if (isJobDbInitialized()) {
+        cleanupOldJobsInDb(maxAgeMs);
+    }
     const promptsDir = getPromptsDir(workingDirectory);
     if (!existsSync(promptsDir)) {
         return 0;

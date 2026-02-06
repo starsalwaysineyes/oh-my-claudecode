@@ -15,6 +15,7 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { isSpawnedPid as isCodexSpawnedPid } from './codex-core.js';
 import { isSpawnedPid as isGeminiSpawnedPid } from './gemini-core.js';
+import { isJobDbInitialized, getJob, getActiveJobs as getActiveJobsFromDb } from './job-state-db.js';
 /** Signals allowed for kill_job. SIGKILL excluded - too dangerous for process groups. */
 const ALLOWED_SIGNALS = new Set(['SIGTERM', 'SIGINT']);
 // ---------------------------------------------------------------------------
@@ -117,6 +118,42 @@ export async function handleWaitForJob(provider, jobId, timeoutMs = 3600000) {
     const deadline = Date.now() + effectiveTimeout;
     let pollDelay = 500;
     while (Date.now() < deadline) {
+        // Try SQLite first if available
+        if (isJobDbInitialized()) {
+            const status = getJob(provider, jobId);
+            if (status) {
+                if (status.status === 'completed' || status.status === 'failed' || status.status === 'timeout') {
+                    if (status.status === 'completed') {
+                        const completed = readCompletedResponse(status.provider, status.slug, status.jobId);
+                        const responseSnippet = completed
+                            ? completed.response.substring(0, 500) + (completed.response.length > 500 ? '...' : '')
+                            : '(response file not found)';
+                        return textResult([
+                            `**Job ${jobId} completed.**`,
+                            `**Provider:** ${status.provider}`,
+                            `**Model:** ${status.model}`,
+                            `**Agent Role:** ${status.agentRole}`,
+                            `**Response File:** ${status.responseFile}`,
+                            status.usedFallback ? `**Fallback Model:** ${status.fallbackModel}` : null,
+                            ``,
+                            `**Response preview:**`,
+                            responseSnippet,
+                        ].filter(Boolean).join('\n'));
+                    }
+                    return textResult([
+                        `**Job ${jobId} ${status.status}.**`,
+                        `**Provider:** ${status.provider}`,
+                        `**Model:** ${status.model}`,
+                        `**Agent Role:** ${status.agentRole}`,
+                        status.error ? `**Error:** ${status.error}` : null,
+                    ].filter(Boolean).join('\n'), true);
+                }
+                // Still running - continue polling
+                await new Promise(resolve => setTimeout(resolve, pollDelay));
+                pollDelay = Math.min(pollDelay * 1.5, 2000);
+                continue;
+            }
+        }
         const found = findJobStatusFile(provider, jobId);
         if (!found) {
             return textResult(`No job found with ID: ${jobId}`, true);
@@ -166,6 +203,28 @@ export async function handleWaitForJob(provider, jobId, timeoutMs = 3600000) {
 export async function handleCheckJobStatus(provider, jobId) {
     if (!jobId || typeof jobId !== 'string') {
         return textResult('job_id is required.', true);
+    }
+    // Try SQLite first if available
+    if (isJobDbInitialized()) {
+        const status = getJob(provider, jobId);
+        if (status) {
+            const lines = [
+                `**Job ID:** ${status.jobId}`,
+                `**Provider:** ${status.provider}`,
+                `**Status:** ${status.status}`,
+                `**Model:** ${status.model}`,
+                `**Agent Role:** ${status.agentRole}`,
+                `**Spawned At:** ${status.spawnedAt}`,
+                status.completedAt ? `**Completed At:** ${status.completedAt}` : null,
+                status.pid ? `**PID:** ${status.pid}` : null,
+                `**Prompt File:** ${status.promptFile}`,
+                `**Response File:** ${status.responseFile}`,
+                status.error ? `**Error:** ${status.error}` : null,
+                status.usedFallback ? `**Fallback Model:** ${status.fallbackModel}` : null,
+                status.killedByUser ? `**Killed By User:** yes` : null,
+            ];
+            return textResult(lines.filter(Boolean).join('\n'));
+        }
     }
     const found = findJobStatusFile(provider, jobId);
     if (!found) {
@@ -301,6 +360,24 @@ export async function handleKillJob(provider, jobId, signal = 'SIGTERM') {
 export async function handleListJobs(provider, statusFilter = 'active', limit = 50) {
     // For 'active' filter, use the optimized listActiveJobs helper
     if (statusFilter === 'active') {
+        // Try SQLite first
+        if (isJobDbInitialized()) {
+            const activeJobs = getActiveJobsFromDb(provider);
+            if (activeJobs.length === 0) {
+                return textResult(`No active ${provider} jobs found.`);
+            }
+            const limited = activeJobs.slice(0, limit);
+            const lines = limited.map((job) => {
+                const parts = [
+                    `- **${job.jobId}** [${job.status}] ${job.provider}/${job.model} (${job.agentRole})`,
+                    `  Spawned: ${job.spawnedAt}`,
+                ];
+                if (job.pid)
+                    parts.push(`  PID: ${job.pid}`);
+                return parts.join('\n');
+            });
+            return textResult(`**${limited.length} active ${provider} job(s):**\n\n${lines.join('\n\n')}`);
+        }
         const activeJobs = listActiveJobs(provider);
         if (activeJobs.length === 0) {
             return textResult(`No active ${provider} jobs found.`);
