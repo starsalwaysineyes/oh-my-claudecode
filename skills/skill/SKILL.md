@@ -696,6 +696,285 @@ When introducing the skill system, explain these benefits:
 /skill scan
 ```
 
+<<<<<<< Updated upstream
+=======
+## Skill Templates
+
+Provide quick templates for common skill types when users want to create a skill.
+
+### Error Solution Template
+
+```markdown
+---
+id: error-[unique-id]
+name: [Error Name]
+description: Solution for [specific error in specific context]
+source: conversation
+triggers: ["error message fragment", "file path", "symptom"]
+quality: high
+---
+
+# [Error Name]
+
+## The Insight
+What is the underlying cause of this error? What principle did you discover?
+
+## Why This Matters
+What goes wrong if you don't know this? What symptom led here?
+
+## Recognition Pattern
+How do you know when this applies? What are the signs?
+- Error message: "[exact error]"
+- File: [specific file path]
+- Context: [when does this occur]
+
+## The Approach
+Step-by-step solution:
+1. [Specific action with file/line reference]
+2. [Specific action with file/line reference]
+3. [Verification step]
+
+## Example
+\`\`\`typescript
+// Before (broken)
+[problematic code]
+
+// After (fixed)
+[corrected code]
+\`\`\`
+```
+
+### Workflow Skill Template
+
+```markdown
+---
+id: workflow-[unique-id]
+name: [Workflow Name]
+description: Process for [specific task in this codebase]
+source: conversation
+triggers: ["task description", "file pattern", "goal keyword"]
+quality: high
+---
+
+# [Workflow Name]
+
+## The Insight
+What makes this workflow different from the obvious approach?
+
+## Why This Matters
+What fails if you don't follow this process?
+
+## Recognition Pattern
+When should you use this workflow?
+- Task type: [specific task]
+- Files involved: [specific patterns]
+- Indicators: [how to recognize]
+
+## The Approach
+1. [Step with specific commands/files]
+2. [Step with specific commands/files]
+3. [Verification]
+
+## Gotchas
+- [Common mistake and how to avoid it]
+- [Edge case and how to handle it]
+```
+
+### Code Pattern Template
+
+```markdown
+---
+id: pattern-[unique-id]
+name: [Pattern Name]
+description: Pattern for [specific use case in this codebase]
+source: conversation
+triggers: ["code pattern", "file type", "problem domain"]
+quality: high
+---
+
+# [Pattern Name]
+
+## The Insight
+What's the key principle behind this pattern?
+
+## Why This Matters
+What problems does this pattern solve in THIS codebase?
+
+## Recognition Pattern
+When do you apply this pattern?
+- File types: [specific files]
+- Problem: [specific problem]
+- Context: [codebase-specific context]
+
+## The Approach
+Decision-making heuristic, not just code:
+1. [Principle-based step]
+2. [Principle-based step]
+
+## Example
+\`\`\`typescript
+[Illustrative example showing the principle]
+\`\`\`
+
+## Anti-Pattern
+What NOT to do and why:
+\`\`\`typescript
+[Common mistake to avoid]
+\`\`\`
+```
+
+### Integration Skill Template
+
+```markdown
+---
+id: integration-[unique-id]
+name: [Integration Name]
+description: How [system A] integrates with [system B] in this codebase
+source: conversation
+triggers: ["system name", "integration point", "config file"]
+quality: high
+---
+
+# [Integration Name]
+
+## The Insight
+What's non-obvious about how these systems connect?
+
+## Why This Matters
+What breaks if you don't understand this integration?
+
+## Recognition Pattern
+When are you working with this integration?
+- Files: [specific integration files]
+- Config: [specific config locations]
+- Symptoms: [what indicates integration issues]
+
+## The Approach
+How to work with this integration correctly:
+1. [Configuration step with file paths]
+2. [Setup step with specific details]
+3. [Verification step]
+
+## Gotchas
+- [Integration-specific pitfall #1]
+- [Integration-specific pitfall #2]
+```
+
+---
+
+## Usage Modes
+
+### Direct Command Mode
+
+When invoked with an argument, skip the interactive wizard:
+
+- `/oh-my-claudecode:skill list` - Show detailed skill inventory
+- `/oh-my-claudecode:skill add` - Start skill creation (invoke learner)
+- `/oh-my-claudecode:skill scan` - Scan both skill directories
+
+### Interactive Mode
+
+When invoked without arguments, run the full guided wizard.
+
+---
+
+## Benefits of Local Skills
+
+**Automatic Application**: Claude detects triggers and applies skills automatically - no need to remember or search for solutions.
+
+**Version Control**: Project-level skills (.omc/skills/) are committed with your code, so the whole team benefits.
+
+**Evolving Knowledge**: Skills improve over time as you discover better approaches and refine triggers.
+
+**Reduced Token Usage**: Instead of re-solving the same problems, Claude applies known patterns efficiently.
+
+**Codebase Memory**: Preserves institutional knowledge that would otherwise be lost in conversation history.
+
+---
+
+## Skill Quality Guidelines
+
+Good skills are:
+
+1. **Non-Googleable** - Can't easily find via search
+   - BAD: "How to read files in TypeScript"
+   - GOOD: "This codebase uses custom path resolution requiring fileURLToPath"
+
+2. **Context-Specific** - References actual files/errors from THIS codebase
+   - BAD: "Use try/catch for error handling"
+   - GOOD: "The aiohttp proxy in server.py:42 crashes on ClientDisconnectedError"
+
+3. **Actionable with Precision** - Tells exactly WHAT to do and WHERE
+   - BAD: "Handle edge cases"
+   - GOOD: "When seeing 'Cannot find module' in dist/, check tsconfig.json moduleResolution"
+
+4. **Hard-Won** - Required significant debugging effort
+   - BAD: Generic programming patterns
+   - GOOD: "Race condition in worker.ts - Promise.all at line 89 needs await"
+
+---
+
+## Related Skills
+
+- `/oh-my-claudecode:learner` - Extract a skill from current conversation
+- `/oh-my-claudecode:note` - Save quick notes (less formal than skills)
+- `/oh-my-claudecode:deepinit` - Generate AGENTS.md codebase hierarchy
+
+---
+
+## Example Session
+
+```
+> /oh-my-claudecode:skill list
+
+Checking skill directories...
+✓ User skills directory exists: ~/.claude/skills/omc-learned/
+✓ Project skills directory exists: .omc/skills/
+
+Scanning for skills...
+
+=== USER-LEVEL SKILLS ===
+Total skills: 3
+  - async-network-error-handling
+    Description: Pattern for handling independent I/O failures in async network code
+    Modified: 2026-01-20 14:32:15
+
+  - esm-path-resolution
+    Description: Custom path resolution in ESM requiring fileURLToPath
+    Modified: 2026-01-19 09:15:42
+
+=== PROJECT-LEVEL SKILLS ===
+Total skills: 5
+  - session-timeout-fix
+    Description: Fix for sessionId undefined after restart in session.ts
+    Modified: 2026-01-22 16:45:23
+
+  - build-cache-invalidation
+    Description: When to clear TypeScript build cache to fix phantom errors
+    Modified: 2026-01-21 11:28:37
+
+=== SUMMARY ===
+Total skills: 8
+
+What would you like to do?
+1. Add new skill
+2. List all skills with details
+3. Scan conversation for patterns
+4. Import skill
+5. Done
+```
+
+---
+
+## Tips for Users
+
+- Run `/oh-my-claudecode:skill list` periodically to review your skill library
+- After solving a tricky bug, immediately run learner to capture it
+- Use project-level skills for codebase-specific knowledge
+- Use user-level skills for general patterns that apply everywhere
+- Review and refine triggers over time to improve matching accuracy
+
+>>>>>>> Stashed changes
 ---
 
 ## Implementation Notes
