@@ -392,11 +392,35 @@ export class SessionManager {
           }
         }
       } else {
-        // Global already has a current-session, just clean up local
-        try {
-          clearState('current-session', StateLocation.LOCAL);
-        } catch {
-          // Best effort cleanup
+        // Global already has current-session - validate before cleaning up local
+        // Prefer the newer session to avoid discarding active state
+        const globalData = globalCurrentSession.data;
+        const localData = localCurrentSession.data;
+
+        if (globalData && localData) {
+          const globalTime = globalData.endTime || globalData.startTime || '';
+          const localTime = localData.endTime || localData.startTime || '';
+
+          if (localTime > globalTime) {
+            // Local is newer — overwrite global with local, then clean up
+            const result = writeState('current-session', localData, StateLocation.GLOBAL);
+            if (result.success) {
+              try {
+                clearState('current-session', StateLocation.LOCAL);
+              } catch {
+                // Best effort cleanup
+              }
+            }
+          } else {
+            // Global is newer or same — safe to clean up local
+            try {
+              clearState('current-session', StateLocation.LOCAL);
+            } catch {
+              // Best effort cleanup
+            }
+          }
+        } else {
+          // Can't compare — leave local in place (fail safe)
         }
       }
     }
