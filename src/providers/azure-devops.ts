@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import type { GitProvider, PRInfo, IssueInfo } from './types.js';
 
 function stripRefPrefix(ref: string): string {
@@ -20,11 +20,13 @@ export class AzureDevOpsProvider implements GitProvider {
   }
 
   viewPR(number: number): PRInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     try {
-      const raw = execSync(
-        `az repos pr show --id ${number} --output json`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 15000 },
-      );
+      const raw = execFileSync('az', ['repos', 'pr', 'show', '--id', String(number), '--output', 'json'], {
+        encoding: 'utf-8',
+        timeout: 15000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       const createdBy = data.createdBy as Record<string, unknown> | undefined;
       return {
@@ -41,11 +43,13 @@ export class AzureDevOpsProvider implements GitProvider {
   }
 
   viewIssue(number: number): IssueInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     try {
-      const raw = execSync(
-        `az boards work-item show --id ${number} --output json`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 15000 },
-      );
+      const raw = execFileSync('az', ['boards', 'work-item', 'show', '--id', String(number), '--output', 'json'], {
+        encoding: 'utf-8',
+        timeout: 15000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       const fields = data.fields as Record<string, unknown> | undefined;
       return {
@@ -60,7 +64,11 @@ export class AzureDevOpsProvider implements GitProvider {
 
   checkAuth(): boolean {
     try {
-      execSync('az account show', { stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 });
+      execFileSync('az', ['account', 'show'], {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       return true;
     } catch {
       return false;

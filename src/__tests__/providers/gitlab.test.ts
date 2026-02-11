@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('node:child_process', () => ({
-  execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { GitLabProvider } from '../../providers/gitlab.js';
 
-const mockExecSync = vi.mocked(execSync);
+const mockExecFileSync = vi.mocked(execFileSync);
 
 describe('GitLabProvider', () => {
   let provider: GitLabProvider;
@@ -62,7 +62,7 @@ describe('GitLabProvider', () => {
   });
 
   describe('viewPR', () => {
-    it('calls glab mr view with correct command and parses response', () => {
+    it('calls glab mr view with correct args and parses response', () => {
       const mockResponse = JSON.stringify({
         title: 'Add feature',
         source_branch: 'feature/new',
@@ -71,12 +71,13 @@ describe('GitLabProvider', () => {
         web_url: 'https://gitlab.com/group/project/-/merge_requests/7',
         author: { username: 'gluser' },
       });
-      mockExecSync.mockReturnValue(mockResponse);
+      mockExecFileSync.mockReturnValue(mockResponse);
 
       const result = provider.viewPR(7);
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'glab mr view 7 --output json',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'glab',
+        ['mr', 'view', '7', '--output', 'json'],
         expect.objectContaining({ encoding: 'utf-8' }),
       );
       expect(result).toEqual({
@@ -90,7 +91,7 @@ describe('GitLabProvider', () => {
     });
 
     it('includes --repo flag when owner and repo are provided', () => {
-      mockExecSync.mockReturnValue(JSON.stringify({
+      mockExecFileSync.mockReturnValue(JSON.stringify({
         title: 'MR',
         source_branch: 'feat',
         target_branch: 'main',
@@ -101,35 +102,44 @@ describe('GitLabProvider', () => {
 
       provider.viewPR(3, 'group', 'project');
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'glab mr view 3 --repo group/project --output json',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'glab',
+        ['mr', 'view', '3', '--repo', 'group/project', '--output', 'json'],
         expect.any(Object),
       );
     });
 
-    it('returns null when execSync throws', () => {
-      mockExecSync.mockImplementation(() => {
+    it('returns null when execFileSync throws', () => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('glab: not found');
       });
 
       expect(provider.viewPR(1)).toBeNull();
     });
+
+    it('returns null for invalid number', () => {
+      expect(provider.viewPR(-1)).toBeNull();
+      expect(provider.viewPR(0)).toBeNull();
+      expect(provider.viewPR(1.5)).toBeNull();
+      expect(mockExecFileSync).not.toHaveBeenCalled();
+    });
   });
 
   describe('viewIssue', () => {
-    it('calls glab issue view with correct command and parses response', () => {
+    it('calls glab issue view with correct args and parses response', () => {
       const mockResponse = JSON.stringify({
         title: 'Bug in pipeline',
         description: 'Pipeline fails on deploy',
         web_url: 'https://gitlab.com/group/project/-/issues/15',
         labels: ['bug', 'pipeline'],
       });
-      mockExecSync.mockReturnValue(mockResponse);
+      mockExecFileSync.mockReturnValue(mockResponse);
 
       const result = provider.viewIssue(15);
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'glab issue view 15 --output json',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'glab',
+        ['issue', 'view', '15', '--output', 'json'],
         expect.objectContaining({ encoding: 'utf-8' }),
       );
       expect(result).toEqual({
@@ -141,7 +151,7 @@ describe('GitLabProvider', () => {
     });
 
     it('includes --repo flag when owner and repo are provided', () => {
-      mockExecSync.mockReturnValue(JSON.stringify({
+      mockExecFileSync.mockReturnValue(JSON.stringify({
         title: 'Issue',
         description: '',
         web_url: '',
@@ -150,34 +160,42 @@ describe('GitLabProvider', () => {
 
       provider.viewIssue(2, 'group', 'project');
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'glab issue view 2 --repo group/project --output json',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'glab',
+        ['issue', 'view', '2', '--repo', 'group/project', '--output', 'json'],
         expect.any(Object),
       );
     });
 
-    it('returns null when execSync throws', () => {
-      mockExecSync.mockImplementation(() => {
+    it('returns null when execFileSync throws', () => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('glab: not found');
       });
 
       expect(provider.viewIssue(1)).toBeNull();
     });
+
+    it('returns null for invalid number', () => {
+      expect(provider.viewIssue(-1)).toBeNull();
+      expect(provider.viewIssue(0)).toBeNull();
+      expect(mockExecFileSync).not.toHaveBeenCalled();
+    });
   });
 
   describe('checkAuth', () => {
     it('returns true when glab auth status succeeds', () => {
-      mockExecSync.mockReturnValue('');
+      mockExecFileSync.mockReturnValue('');
 
       expect(provider.checkAuth()).toBe(true);
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'glab auth status',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'glab',
+        ['auth', 'status'],
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] }),
       );
     });
 
     it('returns false when glab auth status fails', () => {
-      mockExecSync.mockImplementation(() => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('not authenticated');
       });
 

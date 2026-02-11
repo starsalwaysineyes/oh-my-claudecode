@@ -11,45 +11,44 @@ provider_bitbucket_detect_ref() {
     [[ "$ref" =~ ^https://bitbucket\.org/ ]]
 }
 
-_bitbucket_auth_header() {
+_bitbucket_curl() {
+    local url="$1"
+    local -a curl_args=(--fail --silent --show-error --connect-timeout 5 --max-time 20)
     if [[ -n "$BITBUCKET_TOKEN" ]]; then
-        echo "-H 'Authorization: Bearer ${BITBUCKET_TOKEN}'"
+        curl_args+=(-H "Authorization: Bearer $BITBUCKET_TOKEN")
     elif [[ -n "$BITBUCKET_USERNAME" && -n "$BITBUCKET_APP_PASSWORD" ]]; then
-        echo "-u '${BITBUCKET_USERNAME}:${BITBUCKET_APP_PASSWORD}'"
-    else
-        echo ""
+        curl_args+=(-u "$BITBUCKET_USERNAME:$BITBUCKET_APP_PASSWORD")
     fi
+    curl "${curl_args[@]}" "$url" 2>/dev/null
 }
 
 provider_bitbucket_fetch_pr() {
     local pr_number="$1"
     local repo="$2"
-    local auth_header
-    auth_header=$(_bitbucket_auth_header)
-    eval curl -sS "$auth_header" "https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests/${pr_number}" 2>/dev/null
+    _bitbucket_curl "https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests/${pr_number}"
 }
 
 provider_bitbucket_fetch_issue() {
     local issue_number="$1"
     local repo="$2"
-    local auth_header
-    auth_header=$(_bitbucket_auth_header)
-    eval curl -sS "$auth_header" "https://api.bitbucket.org/2.0/repositories/${repo}/issues/${issue_number}" 2>/dev/null
+    _bitbucket_curl "https://api.bitbucket.org/2.0/repositories/${repo}/issues/${issue_number}"
 }
 
 provider_bitbucket_pr_merged() {
     local pr_number="$1"
     local repo="$2"
+    command -v jq >/dev/null 2>&1 || return 1
     local state
-    state=$(provider_bitbucket_fetch_pr "$pr_number" "$repo" | jq -r '.state')
+    state=$(provider_bitbucket_fetch_pr "$pr_number" "$repo" | jq -r '.state // empty')
     [[ "$state" == "MERGED" ]]
 }
 
 provider_bitbucket_issue_closed() {
     local issue_number="$1"
     local repo="$2"
+    command -v jq >/dev/null 2>&1 || return 1
     local state
-    state=$(provider_bitbucket_fetch_issue "$issue_number" "$repo" | jq -r '.state')
+    state=$(provider_bitbucket_fetch_issue "$issue_number" "$repo" | jq -r '.state // empty')
     [[ "$state" == "closed" ]]
 }
 

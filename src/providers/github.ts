@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import type { GitProvider, PRInfo, IssueInfo } from './types.js';
 
 export class GitHubProvider implements GitProvider {
@@ -12,12 +12,16 @@ export class GitHubProvider implements GitProvider {
   }
 
   viewPR(number: number, owner?: string, repo?: string): PRInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     try {
-      const repoFlag = owner && repo ? ` --repo ${owner}/${repo}` : '';
-      const raw = execSync(
-        `gh pr view ${number}${repoFlag} --json title,headRefName,baseRefName,body,url,author`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
-      );
+      const args = ['pr', 'view', String(number)];
+      if (owner && repo) args.push('--repo', `${owner}/${repo}`);
+      args.push('--json', 'title,headRefName,baseRefName,body,url,author');
+      const raw = execFileSync('gh', args, {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       return {
         title: data.title,
@@ -33,12 +37,16 @@ export class GitHubProvider implements GitProvider {
   }
 
   viewIssue(number: number, owner?: string, repo?: string): IssueInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     try {
-      const repoFlag = owner && repo ? ` --repo ${owner}/${repo}` : '';
-      const raw = execSync(
-        `gh issue view ${number}${repoFlag} --json title,body,labels,url`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
-      );
+      const args = ['issue', 'view', String(number)];
+      if (owner && repo) args.push('--repo', `${owner}/${repo}`);
+      args.push('--json', 'title,body,labels,url');
+      const raw = execFileSync('gh', args, {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       return {
         title: data.title,
@@ -53,7 +61,11 @@ export class GitHubProvider implements GitProvider {
 
   checkAuth(): boolean {
     try {
-      execSync('gh auth status', { stdio: ['pipe', 'pipe', 'pipe'] });
+      execFileSync('gh', ['auth', 'status'], {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       return true;
     } catch {
       return false;

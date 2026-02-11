@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import type { GitProvider, PRInfo, IssueInfo } from './types.js';
 
 export class GiteaProvider implements GitProvider {
@@ -30,12 +30,14 @@ export class GiteaProvider implements GitProvider {
   }
 
   viewPR(number: number, owner?: string, repo?: string): PRInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     // Try tea CLI first
     try {
-      const raw = execSync(
-        `tea pr view ${number}`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
-      );
+      const raw = execFileSync('tea', ['pr', 'view', String(number)], {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       return {
         title: data.title,
@@ -58,11 +60,14 @@ export class GiteaProvider implements GitProvider {
     if (!baseUrl || !owner || !repo) return null;
 
     try {
-      const headers = token ? `-H "Authorization: token ${token}"` : '';
-      const raw = execSync(
-        `curl -sS ${headers} "${baseUrl}/api/v1/repos/${owner}/${repo}/pulls/${number}"`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
-      );
+      const args = ['-sS'];
+      if (token) args.push('-H', `Authorization: token ${token}`);
+      args.push(`${baseUrl}/api/v1/repos/${owner}/${repo}/pulls/${number}`);
+      const raw = execFileSync('curl', args, {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       return {
         title: data.title,
@@ -78,12 +83,14 @@ export class GiteaProvider implements GitProvider {
   }
 
   viewIssue(number: number, owner?: string, repo?: string): IssueInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     // Try tea CLI first
     try {
-      const raw = execSync(
-        `tea issues view ${number}`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
-      );
+      const raw = execFileSync('tea', ['issues', 'view', String(number)], {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       return {
         title: data.title,
@@ -103,10 +110,12 @@ export class GiteaProvider implements GitProvider {
     if (!baseUrl || !owner || !repo) return null;
 
     try {
-      const raw = execSync(
-        `curl -sS "${baseUrl}/api/v1/repos/${owner}/${repo}/issues/${number}"`,
-        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
-      );
+      const args = ['-sS', `${baseUrl}/api/v1/repos/${owner}/${repo}/issues/${number}`];
+      const raw = execFileSync('curl', args, {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const data = JSON.parse(raw);
       return {
         title: data.title,
@@ -125,7 +134,11 @@ export class GiteaProvider implements GitProvider {
 
     // Try tea CLI auth
     try {
-      execSync('tea login list', { stdio: ['pipe', 'pipe', 'pipe'] });
+      execFileSync('tea', ['login', 'list'], {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       return true;
     } catch {
       return false;

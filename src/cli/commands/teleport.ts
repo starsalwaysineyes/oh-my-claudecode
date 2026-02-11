@@ -44,7 +44,7 @@ function parseRef(ref: string): {
   provider?: ProviderName;
 } {
   // GitHub PR URL: github.com/owner/repo/pull/N
-  const ghPrUrlMatch = ref.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+  const ghPrUrlMatch = ref.match(/^https?:\/\/[^/]*github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:[?#].*)?$/);
   if (ghPrUrlMatch) {
     return {
       type: 'pr',
@@ -56,7 +56,7 @@ function parseRef(ref: string): {
   }
 
   // GitHub Issue URL: github.com/owner/repo/issues/N
-  const ghIssueUrlMatch = ref.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+  const ghIssueUrlMatch = ref.match(/^https?:\/\/[^/]*github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)(?:[?#].*)?$/);
   if (ghIssueUrlMatch) {
     return {
       type: 'issue',
@@ -67,32 +67,38 @@ function parseRef(ref: string): {
     };
   }
 
-  // GitLab MR URL: gitlab.*/owner/repo/-/merge_requests/N (supports self-hosted)
-  const glMrUrlMatch = ref.match(/gitlab\.[^/]+\/([^/]+)\/([^/]+)\/-\/merge_requests\/(\d+)/);
+  // GitLab MR URL: gitlab.*/namespace/-/merge_requests/N (supports nested groups and self-hosted)
+  const glMrUrlMatch = ref.match(/^https?:\/\/[^/]*gitlab[^/]*\/(.+)\/-\/merge_requests\/(\d+)(?:[?#].*)?$/);
   if (glMrUrlMatch) {
+    const namespaceParts = glMrUrlMatch[1].split('/');
+    const repo = namespaceParts.pop()!;
+    const owner = namespaceParts.join('/');
     return {
       type: 'pr',
-      owner: glMrUrlMatch[1],
-      repo: glMrUrlMatch[2],
-      number: parseInt(glMrUrlMatch[3], 10),
+      owner,
+      repo,
+      number: parseInt(glMrUrlMatch[2], 10),
       provider: 'gitlab',
     };
   }
 
-  // GitLab Issue URL: gitlab.*/owner/repo/-/issues/N (supports self-hosted)
-  const glIssueUrlMatch = ref.match(/gitlab\.[^/]+\/([^/]+)\/([^/]+)\/-\/issues\/(\d+)/);
+  // GitLab Issue URL: gitlab.*/namespace/-/issues/N (supports nested groups and self-hosted)
+  const glIssueUrlMatch = ref.match(/^https?:\/\/[^/]*gitlab[^/]*\/(.+)\/-\/issues\/(\d+)(?:[?#].*)?$/);
   if (glIssueUrlMatch) {
+    const namespaceParts = glIssueUrlMatch[1].split('/');
+    const repo = namespaceParts.pop()!;
+    const owner = namespaceParts.join('/');
     return {
       type: 'issue',
-      owner: glIssueUrlMatch[1],
-      repo: glIssueUrlMatch[2],
-      number: parseInt(glIssueUrlMatch[3], 10),
+      owner,
+      repo,
+      number: parseInt(glIssueUrlMatch[2], 10),
       provider: 'gitlab',
     };
   }
 
   // Bitbucket PR URL: bitbucket.org/workspace/repo/pull-requests/N
-  const bbPrUrlMatch = ref.match(/bitbucket\.org\/([^/]+)\/([^/]+)\/pull-requests\/(\d+)/);
+  const bbPrUrlMatch = ref.match(/^https?:\/\/[^/]*bitbucket\.org\/([^/]+)\/([^/]+)\/pull-requests\/(\d+)(?:[?#].*)?$/);
   if (bbPrUrlMatch) {
     return {
       type: 'pr',
@@ -104,7 +110,7 @@ function parseRef(ref: string): {
   }
 
   // Bitbucket Issue URL: bitbucket.org/workspace/repo/issues/N
-  const bbIssueUrlMatch = ref.match(/bitbucket\.org\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+  const bbIssueUrlMatch = ref.match(/^https?:\/\/[^/]*bitbucket\.org\/([^/]+)\/([^/]+)\/issues\/(\d+)(?:[?#].*)?$/);
   if (bbIssueUrlMatch) {
     return {
       type: 'issue',
@@ -116,7 +122,7 @@ function parseRef(ref: string): {
   }
 
   // Azure DevOps PR URL: dev.azure.com/org/project/_git/repo/pullrequest/N
-  const azPrUrlMatch = ref.match(/dev\.azure\.com\/([^/]+)\/([^/]+)\/_git\/([^/]+)\/pullrequest\/(\d+)/);
+  const azPrUrlMatch = ref.match(/^https?:\/\/[^/]*dev\.azure\.com\/([^/]+)\/([^/]+)\/_git\/([^/]+)\/pullrequest\/(\d+)(?:[?#].*)?$/);
   if (azPrUrlMatch) {
     return {
       type: 'pr',

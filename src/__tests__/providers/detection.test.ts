@@ -128,4 +128,44 @@ describe('parseRemoteUrl', () => {
       repo: 'repo',
     });
   });
+
+  it('parses GitLab nested group HTTPS URL', () => {
+    const result = parseRemoteUrl('https://gitlab.com/group/subgroup/repo.git');
+    expect(result).toEqual({
+      provider: 'gitlab',
+      host: 'gitlab.com',
+      owner: 'group/subgroup',
+      repo: 'repo',
+    });
+  });
+
+  it('parses GitLab nested group SSH URL', () => {
+    const result = parseRemoteUrl('git@gitlab.com:group/subgroup/repo.git');
+    expect(result).toEqual({
+      provider: 'gitlab',
+      host: 'gitlab.com',
+      owner: 'group/subgroup',
+      repo: 'repo',
+    });
+  });
+
+  it('parses GitLab deeply nested group HTTPS URL', () => {
+    const result = parseRemoteUrl('https://gitlab.com/a/b/c/repo.git');
+    expect(result).toEqual({
+      provider: 'gitlab',
+      host: 'gitlab.com',
+      owner: 'a/b/c',
+      repo: 'repo',
+    });
+  });
+
+  it('parses GitLab nested group SSH URL-style', () => {
+    const result = parseRemoteUrl('ssh://git@gitlab.com/group/subgroup/repo.git');
+    expect(result).toEqual({
+      provider: 'gitlab',
+      host: 'gitlab.com',
+      owner: 'group/subgroup',
+      repo: 'repo',
+    });
+  });
 });

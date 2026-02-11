@@ -13,11 +13,11 @@ provider_gitea_detect_ref() {
 _gitea_curl_api() {
     local endpoint="$1"
     local base_url="${GITEA_URL:-https://gitea.com}"
-    local auth_header=""
+    local -a curl_args=(--fail --silent --show-error --connect-timeout 5 --max-time 20)
     if [[ -n "$GITEA_TOKEN" ]]; then
-        auth_header="-H 'Authorization: token ${GITEA_TOKEN}'"
+        curl_args+=(-H "Authorization: token $GITEA_TOKEN")
     fi
-    eval curl -sS "$auth_header" "${base_url}/api/v1/${endpoint}" 2>/dev/null
+    curl "${curl_args[@]}" "${base_url}/api/v1/${endpoint}" 2>/dev/null
 }
 
 provider_gitea_fetch_pr() {
@@ -63,10 +63,11 @@ provider_gitea_fetch_issue() {
 provider_gitea_pr_merged() {
     local pr_number="$1"
     local repo="$2"
+    command -v jq >/dev/null 2>&1 || return 1
     local merged
     # Use REST API for structured JSON output
     if [[ -n "$GITEA_URL" && -n "$GITEA_TOKEN" ]]; then
-        merged=$(_gitea_curl_api "repos/${repo}/pulls/${pr_number}" | jq -r '.merged')
+        merged=$(_gitea_curl_api "repos/${repo}/pulls/${pr_number}" | jq -r '.merged // empty')
         [[ "$merged" == "true" ]]
     else
         return 1
@@ -76,10 +77,11 @@ provider_gitea_pr_merged() {
 provider_gitea_issue_closed() {
     local issue_number="$1"
     local repo="$2"
+    command -v jq >/dev/null 2>&1 || return 1
     local state
     # Use REST API for structured JSON output
     if [[ -n "$GITEA_URL" && -n "$GITEA_TOKEN" ]]; then
-        state=$(_gitea_curl_api "repos/${repo}/issues/${issue_number}" | jq -r '.state')
+        state=$(_gitea_curl_api "repos/${repo}/issues/${issue_number}" | jq -r '.state // empty')
         [[ "$state" == "closed" ]]
     else
         return 1

@@ -7,8 +7,13 @@
 
 import { execSync } from 'node:child_process';
 import type { ProviderName, RemoteUrlInfo, GitProvider } from './types.js';
+import { GitHubProvider } from './github.js';
+import { GitLabProvider } from './gitlab.js';
+import { BitbucketProvider } from './bitbucket.js';
+import { AzureDevOpsProvider } from './azure-devops.js';
+import { GiteaProvider } from './gitea.js';
 
-// Lazy-loaded provider instances
+// Singleton provider registry
 let providerRegistry: Map<ProviderName, GitProvider> | null = null;
 
 /**
@@ -84,9 +89,9 @@ export function parseRemoteUrl(url: string): RemoteUrlInfo | null {
     };
   }
 
-  // Standard HTTPS: https://host/owner/repo.git
+  // Standard HTTPS: https://host/owner/repo.git (supports nested groups like group/subgroup/repo)
   const httpsMatch = trimmed.match(
-    /https?:\/\/([^/]+)\/([^/]+)\/([^/\s]+?)(?:\.git)?$/
+    /https?:\/\/([^/]+)\/(.+?)\/([^/\s]+?)(?:\.git)?$/
   );
   if (httpsMatch) {
     const host = httpsMatch[1];
@@ -98,9 +103,9 @@ export function parseRemoteUrl(url: string): RemoteUrlInfo | null {
     };
   }
 
-  // SSH SCP-style: git@host:owner/repo.git
+  // SSH SCP-style: git@host:owner/repo.git (supports nested groups like group/subgroup/repo)
   const sshMatch = trimmed.match(
-    /git@([^:]+):([^/]+)\/([^/\s]+?)(?:\.git)?$/
+    /git@([^:]+):(.+?)\/([^/\s]+?)(?:\.git)?$/
   );
   if (sshMatch) {
     const host = sshMatch[1];
@@ -112,9 +117,9 @@ export function parseRemoteUrl(url: string): RemoteUrlInfo | null {
     };
   }
 
-  // SSH URL-style: ssh://git@host/owner/repo.git
+  // SSH URL-style: ssh://git@host/owner/repo.git (supports nested groups like group/subgroup/repo)
   const sshUrlMatch = trimmed.match(
-    /ssh:\/\/git@([^/]+)\/([^/]+)\/([^/\s]+?)(?:\.git)?$/
+    /ssh:\/\/git@([^/]+)\/(.+?)\/([^/\s]+?)(?:\.git)?$/
   );
   if (sshUrlMatch) {
     const host = sshUrlMatch[1];
@@ -174,39 +179,14 @@ export function parseRemoteFromCwd(cwd?: string): RemoteUrlInfo | null {
 function initRegistry(): Map<ProviderName, GitProvider> {
   if (providerRegistry) return providerRegistry;
 
-  providerRegistry = new Map();
-
-  // Lazy imports to avoid circular dependencies and loading unused providers
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { GitHubProvider } = require('./github.js');
-    providerRegistry.set('github', new GitHubProvider());
-  } catch { /* provider not available */ }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { GitLabProvider } = require('./gitlab.js');
-    providerRegistry.set('gitlab', new GitLabProvider());
-  } catch { /* provider not available */ }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { BitbucketProvider } = require('./bitbucket.js');
-    providerRegistry.set('bitbucket', new BitbucketProvider());
-  } catch { /* provider not available */ }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { AzureDevOpsProvider } = require('./azure-devops.js');
-    providerRegistry.set('azure-devops', new AzureDevOpsProvider());
-  } catch { /* provider not available */ }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { GiteaProvider } = require('./gitea.js');
-    providerRegistry.set('gitea', new GiteaProvider());
-    providerRegistry.set('forgejo', new GiteaProvider()); // Forgejo uses same API
-  } catch { /* provider not available */ }
+  providerRegistry = new Map<ProviderName, GitProvider>([
+    ['github', new GitHubProvider()],
+    ['gitlab', new GitLabProvider()],
+    ['bitbucket', new BitbucketProvider()],
+    ['azure-devops', new AzureDevOpsProvider()],
+    ['gitea', new GiteaProvider()],
+    ['forgejo', new GiteaProvider()],
+  ]);
 
   return providerRegistry;
 }

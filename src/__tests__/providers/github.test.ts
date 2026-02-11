@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('node:child_process', () => ({
-  execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { GitHubProvider } from '../../providers/github.js';
 
-const mockExecSync = vi.mocked(execSync);
+const mockExecFileSync = vi.mocked(execFileSync);
 
 describe('GitHubProvider', () => {
   let provider: GitHubProvider;
@@ -58,7 +58,7 @@ describe('GitHubProvider', () => {
   });
 
   describe('viewPR', () => {
-    it('calls gh pr view with correct command and parses response', () => {
+    it('calls gh pr view with correct args and parses response', () => {
       const mockResponse = JSON.stringify({
         title: 'Fix bug',
         headRefName: 'fix/bug',
@@ -67,12 +67,13 @@ describe('GitHubProvider', () => {
         url: 'https://github.com/user/repo/pull/42',
         author: { login: 'testuser' },
       });
-      mockExecSync.mockReturnValue(mockResponse);
+      mockExecFileSync.mockReturnValue(mockResponse);
 
       const result = provider.viewPR(42);
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'gh pr view 42 --json title,headRefName,baseRefName,body,url,author',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'gh',
+        ['pr', 'view', '42', '--json', 'title,headRefName,baseRefName,body,url,author'],
         expect.objectContaining({ encoding: 'utf-8' }),
       );
       expect(result).toEqual({
@@ -86,7 +87,7 @@ describe('GitHubProvider', () => {
     });
 
     it('includes --repo flag when owner and repo are provided', () => {
-      mockExecSync.mockReturnValue(JSON.stringify({
+      mockExecFileSync.mockReturnValue(JSON.stringify({
         title: 'PR',
         headRefName: 'feat',
         baseRefName: 'main',
@@ -97,35 +98,44 @@ describe('GitHubProvider', () => {
 
       provider.viewPR(1, 'owner', 'repo');
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'gh pr view 1 --repo owner/repo --json title,headRefName,baseRefName,body,url,author',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'gh',
+        ['pr', 'view', '1', '--repo', 'owner/repo', '--json', 'title,headRefName,baseRefName,body,url,author'],
         expect.any(Object),
       );
     });
 
-    it('returns null when execSync throws', () => {
-      mockExecSync.mockImplementation(() => {
+    it('returns null when execFileSync throws', () => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('gh: not found');
       });
 
       expect(provider.viewPR(1)).toBeNull();
     });
+
+    it('returns null for invalid number', () => {
+      expect(provider.viewPR(-1)).toBeNull();
+      expect(provider.viewPR(0)).toBeNull();
+      expect(provider.viewPR(1.5)).toBeNull();
+      expect(mockExecFileSync).not.toHaveBeenCalled();
+    });
   });
 
   describe('viewIssue', () => {
-    it('calls gh issue view with correct command and parses response', () => {
+    it('calls gh issue view with correct args and parses response', () => {
       const mockResponse = JSON.stringify({
         title: 'Bug report',
         body: 'Something is broken',
         labels: [{ name: 'bug' }, { name: 'critical' }],
         url: 'https://github.com/user/repo/issues/10',
       });
-      mockExecSync.mockReturnValue(mockResponse);
+      mockExecFileSync.mockReturnValue(mockResponse);
 
       const result = provider.viewIssue(10);
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'gh issue view 10 --json title,body,labels,url',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'gh',
+        ['issue', 'view', '10', '--json', 'title,body,labels,url'],
         expect.objectContaining({ encoding: 'utf-8' }),
       );
       expect(result).toEqual({
@@ -137,7 +147,7 @@ describe('GitHubProvider', () => {
     });
 
     it('includes --repo flag when owner and repo are provided', () => {
-      mockExecSync.mockReturnValue(JSON.stringify({
+      mockExecFileSync.mockReturnValue(JSON.stringify({
         title: 'Issue',
         body: '',
         labels: [],
@@ -146,34 +156,42 @@ describe('GitHubProvider', () => {
 
       provider.viewIssue(5, 'owner', 'repo');
 
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'gh issue view 5 --repo owner/repo --json title,body,labels,url',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'gh',
+        ['issue', 'view', '5', '--repo', 'owner/repo', '--json', 'title,body,labels,url'],
         expect.any(Object),
       );
     });
 
-    it('returns null when execSync throws', () => {
-      mockExecSync.mockImplementation(() => {
+    it('returns null when execFileSync throws', () => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('gh: not found');
       });
 
       expect(provider.viewIssue(1)).toBeNull();
     });
+
+    it('returns null for invalid number', () => {
+      expect(provider.viewIssue(-1)).toBeNull();
+      expect(provider.viewIssue(0)).toBeNull();
+      expect(mockExecFileSync).not.toHaveBeenCalled();
+    });
   });
 
   describe('checkAuth', () => {
     it('returns true when gh auth status succeeds', () => {
-      mockExecSync.mockReturnValue('');
+      mockExecFileSync.mockReturnValue('');
 
       expect(provider.checkAuth()).toBe(true);
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'gh auth status',
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'gh',
+        ['auth', 'status'],
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] }),
       );
     });
 
     it('returns false when gh auth status fails', () => {
-      mockExecSync.mockImplementation(() => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('not authenticated');
       });
 

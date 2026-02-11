@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import type { GitProvider, PRInfo, IssueInfo } from './types.js';
 
 const API_BASE = 'https://api.bitbucket.org/2.0/repositories';
@@ -6,12 +6,12 @@ const API_BASE = 'https://api.bitbucket.org/2.0/repositories';
 function getAuthHeader(): string | null {
   const token = process.env.BITBUCKET_TOKEN;
   if (token) {
-    return `Authorization: Bearer ${token}`;
+    return `Bearer ${token}`;
   }
   const username = process.env.BITBUCKET_USERNAME;
   const appPassword = process.env.BITBUCKET_APP_PASSWORD;
   if (username && appPassword) {
-    return `Authorization: Basic ${Buffer.from(`${username}:${appPassword}`).toString('base64')}`;
+    return `Basic ${Buffer.from(`${username}:${appPassword}`).toString('base64')}`;
   }
   return null;
 }
@@ -20,10 +20,12 @@ function fetchApi(url: string): Record<string, unknown> | null {
   const auth = getAuthHeader();
   if (!auth) return null;
   try {
-    const raw = execSync(
-      `curl -sS -H "${auth}" "${url}"`,
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 },
-    );
+    const args = ['-sS', '-H', `Authorization: ${auth}`, url];
+    const raw = execFileSync('curl', args, {
+      encoding: 'utf-8',
+      timeout: 10000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     return JSON.parse(raw);
   } catch {
     return null;
@@ -41,6 +43,7 @@ export class BitbucketProvider implements GitProvider {
   }
 
   viewPR(number: number, owner?: string, repo?: string): PRInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     if (!owner || !repo) return null;
     const data = fetchApi(`${API_BASE}/${owner}/${repo}/pullrequests/${number}`);
     if (!data) return null;
@@ -62,6 +65,7 @@ export class BitbucketProvider implements GitProvider {
   }
 
   viewIssue(number: number, owner?: string, repo?: string): IssueInfo | null {
+    if (!Number.isInteger(number) || number < 1) return null;
     if (!owner || !repo) return null;
     const data = fetchApi(`${API_BASE}/${owner}/${repo}/issues/${number}`);
     if (!data) return null;
