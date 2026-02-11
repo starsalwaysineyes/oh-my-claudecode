@@ -42,14 +42,18 @@ export function detectProvider(remoteUrl: string): ProviderName {
     return 'bitbucket';
   }
 
-  // Self-hosted heuristics (less reliable)
-  if (/gitlab/i.test(url)) {
+  // Self-hosted heuristics — match hostname labels only, not path/query
+  // Extract host portion: for SCP-style (git@host:...) or URL-style
+  const hostMatch = url.match(/^(?:https?:\/\/|ssh:\/\/[^@]*@|[^@]+@)([^/:]+)/);
+  const host = hostMatch ? hostMatch[1].toLowerCase() : url.toLowerCase();
+
+  if (/(^|[.-])gitlab([.-]|$)/i.test(host)) {
     return 'gitlab';
   }
-  if (/gitea/i.test(url)) {
+  if (/(^|[.-])gitea([.-]|$)/i.test(host)) {
     return 'gitea';
   }
-  if (/forgejo/i.test(url)) {
+  if (/(^|[.-])forgejo([.-]|$)/i.test(host)) {
     return 'forgejo';
   }
 

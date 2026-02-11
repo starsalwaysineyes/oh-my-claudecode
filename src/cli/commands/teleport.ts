@@ -6,7 +6,7 @@
  */
 
 import chalk from 'chalk';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'fs';
 import { homedir } from 'os';
 import { join, basename, isAbsolute, relative } from 'path';
@@ -374,9 +374,9 @@ export async function teleportCommand(
           const refspec = provider.prRefspec
             .replace('{number}', String(parsed.number))
             .replace('{branch}', branchName);
-          execSync(
-            `git fetch origin ${refspec}`,
-            { cwd: repoRoot, stdio: 'pipe' }
+          execFileSync(
+            'git', ['fetch', 'origin', refspec],
+            { cwd: repoRoot, stdio: ['pipe', 'pipe', 'pipe'], timeout: 30000 }
           );
         } catch {
           // Branch might already exist

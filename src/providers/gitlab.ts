@@ -8,7 +8,12 @@ export class GitLabProvider implements GitProvider {
   readonly prRefspec = 'merge-requests/{number}/head:{branch}';
 
   detectFromRemote(url: string): boolean {
-    return url.includes('gitlab.com') || /gitlab/i.test(url);
+    const lower = url.toLowerCase();
+    if (lower.includes('gitlab.com')) return true;
+    // Self-hosted: match hostname label containing 'gitlab', not path/query
+    const hostMatch = lower.match(/^(?:https?:\/\/|ssh:\/\/[^@]*@|[^@]+@)([^/:]+)/);
+    const host = hostMatch ? hostMatch[1] : '';
+    return /(^|[.-])gitlab([.-]|$)/.test(host);
   }
 
   async detectFromApi(baseUrl: string): Promise<boolean> {
